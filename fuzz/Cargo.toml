@@ -1,0 +1,30 @@
+# Crate separada do projeto principal: o cargo-fuzz exige nightly e libfuzzer, e nada disso
+# deve pesar na compilação normal. Rodar com: cargo +nightly fuzz run read_module
+[package]
+name = "xmcli-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+xmcli = { path = ".." }
+
+[[bin]]
+name = "read_module"
+path = "fuzz_targets/read_module.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "unpack_container"
+path = "fuzz_targets/unpack_container.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

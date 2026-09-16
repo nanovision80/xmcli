@@ -1,0 +1,5 @@
+# Toolchain de desenvolvimento. A versão mínima suportada (MSRV) é declarada
+# separadamente em Cargo.toml, no campo `rust-version`.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

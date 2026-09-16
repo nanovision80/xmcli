@@ -1,0 +1,117 @@
+// Forma e validação da configuração.
+//
+// Este arquivo é a DEFINIÇÃO ÚNICA do formato de `config/defaults.json` e do arquivo de
+// configuração do usuário. Ele é incluído por `build.rs` (via `include!`) para que um
+// `defaults.json` inválido quebre a compilação, e não o programa em execução.
+//
+// Duas consequências de ser incluído em dois contextos:
+//   - nada aqui pode depender de mais que `serde` e `thiserror`;
+//   - os comentários de topo são `//`, não `//!`: doc de módulo interno não sobrevive a
+//     `include!`. A documentação do módulo está na declaração `mod settings` em `mod.rs`.
+use serde::Deserialize;
+use thiserror::Error;
+
+/// Menor taxa de amostragem aceita, em Hz (RF-306).
+const SAMPLE_RATE_MIN_HZ: u32 = 22_050;
+
+/// Maior taxa de amostragem aceita, em Hz (RF-306).
+const SAMPLE_RATE_MAX_HZ: u32 = 192_000;
+
+/// Menor latência aceita, em ms. Abaixo disso nenhum backend entrega sem xrun (RNF-02).
+const LATENCY_MIN_MS: u16 = 1;
+
+/// Maior latência aceita, em ms. Acima disso a compensação de RF-620 fica visível.
+const LATENCY_MAX_MS: u16 = 500;
+
+/// Configuração resolvida do programa.
+///
+/// Depois de montada ela é **congelada**: nenhum laço quente lê configuração
+/// (CLAUDE.md §2, invariante 7).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Settings {
+    pub audio: Audio,
+    pub io: Io,
+    pub log: Log,
+}
+
+/// Saída de áudio (RF-401, RF-402).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Audio {
+    /// Taxa de amostragem pedida ao dispositivo, em Hz.
+    pub sample_rate: u32,
+    /// Latência alvo do dispositivo, em milissegundos.
+    pub latency_ms: u16,
+}
+
+/// Leitura de arquivos de entrada (RF-105).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Io {
+    /// Teto de tamanho para um arquivo de entrada, em bytes. Módulo é entrada hostil:
+    /// sem teto, um cabeçalho mentiroso vira exaustão de memória.
+    pub max_file_bytes: u64,
+}
+
+/// Registro de diagnóstico, sempre em `stderr` (RF-709).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Log {
+    pub level: LogLevel,
+}
+
+/// Nível de detalhamento do log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+/// Configuração sintaticamente válida, mas com valor fora do que o programa suporta.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("{field} = {value} está fora da faixa suportada ({min} a {max})")]
+pub struct OutOfRange {
+    pub field: &'static str,
+    pub value: u64,
+    pub min: u64,
+    pub max: u64,
+}
+
+impl Settings {
+    /// Verifica os limites que o sistema de tipos não expressa.
+    ///
+    /// Roda em `build.rs` sobre os padrões e a cada resolução sobre o resultado final, de modo
+    /// que um valor absurdo é recusado na borda e nunca chega ao dispositivo de áudio.
+    pub fn validate(&self) -> Result<(), OutOfRange> {
+        check_range(
+            "audio.sample_rate",
+            u64::from(self.audio.sample_rate),
+            u64::from(SAMPLE_RATE_MIN_HZ),
+            u64::from(SAMPLE_RATE_MAX_HZ),
+        )?;
+        check_range(
+            "audio.latency_ms",
+            u64::from(self.audio.latency_ms),
+            u64::from(LATENCY_MIN_MS),
+            u64::from(LATENCY_MAX_MS),
+        )?;
+        check_range("io.max_file_bytes", self.io.max_file_bytes, 1, u64::MAX)
+    }
+}
+
+fn check_range(field: &'static str, value: u64, min: u64, max: u64) -> Result<(), OutOfRange> {
+    if (min..=max).contains(&value) {
+        return Ok(());
+    }
+    Err(OutOfRange {
+        field,
+        value,
+        min,
+        max,
+    })
+}
