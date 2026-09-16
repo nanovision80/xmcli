@@ -88,7 +88,15 @@ pub fn play(
                     // Silêncio em vez de lixo: um estouro deve soar como um buraco, não como
                     // um estalo. A contagem sobe para o programa poder relatar (RF-402).
                     out[taken..].fill(0.0);
-                    callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
+
+                    // Depois do fim da música o anel esvazia por definição, e o último bloco
+                    // é parcial porque o total renderizado não é múltiplo do buffer do
+                    // dispositivo. Contar isso como estouro faria o programa pedir mais
+                    // latência para um problema que não existe. Ler o sinalizador aqui é
+                    // barato e não fere o invariante 1: é um átomo, sem lock e sem alocação.
+                    if !callback_clock.is_finished() {
+                        callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
+                    }
                 }
                 callback_clock.advance((out.len() / CHANNELS) as u64);
             },
