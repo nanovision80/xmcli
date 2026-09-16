@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / ${{ matrix.features }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # libopenmpt existe como pacote de sistema no Linux e no macOS, então lá a
+          # matriz exercita o motor externo de verdade.
+          - os: ubuntu-latest
+            features: --all-features
+          - os: macos-latest
+            features: --all-features
+          # No Windows não há pacote de libopenmpt pronto para o runner, e o
+          # openmpt-sys apenas linka contra a biblioteca do sistema. Até a etapa 8
+          # entregar o motor próprio, o Windows valida tudo que não depende dele:
+          # loaders, configuração, CLI e render offline.
+          - os: windows-latest
+            features: --no-default-features
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar libopenmpt e ALSA (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenmpt-dev libasound2-dev
+
+      - name: Instalar libopenmpt (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libopenmpt
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.features }}
+
+      - name: Formatação
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets ${{ matrix.features }} -- -D warnings
+
+      - name: Testes
+        run: cargo test --all ${{ matrix.features }}
+
+      - name: Build de release
+        run: cargo build --release ${{ matrix.features }}
+
+  msrv:
+    name: MSRV 1.85
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar libopenmpt e ALSA
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenmpt-dev libasound2-dev
+      # A MSRV vem do campo `rust-version` do Cargo.toml; mantê-la aqui também seria
+      # a mesma informação em dois lugares (CLAUDE.md §4).
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --all-features
