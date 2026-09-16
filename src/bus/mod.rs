@@ -13,5 +13,6 @@
 
 pub mod master;
 mod queue;
+pub mod snapshot;
 
 pub use queue::{Receiver, Sender, Stamped, channel};

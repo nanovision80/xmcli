@@ -4,7 +4,8 @@
     "latency_ms": 30
   },
   "bus": {
-    "master_history_ms": 500
+    "master_history_ms": 500,
+    "snapshot_capacity": 128
   },
   "io": {
     "max_file_bytes": 268435456

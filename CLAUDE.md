@@ -377,7 +377,10 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       — *a derivação para o laço de render entra na 3.4, junto com a compensação de
       latência: é ela que traz o primeiro consumidor. Aqui ficam o bloco, o fatiamento
       carimbado e a capacidade vinda de `bus.master_history_ms`.*
-- [ ] 3.3 Snapshot de estado por tick: order/row/tick/BPM/speed e estado por canal
+- [x] 3.3 Snapshot de estado por tick: order/row/tick/BPM/speed e estado por canal
+      — *com o motor externo o estado é amostrado por bloco de render, não por tick, e o
+      estado por canal é o VU: o libopenmpt não expõe tick, nota nem instrumento por
+      canal (§6). Esses campos entram na etapa 8, com o motor que os conhece.*
 - [ ] 3.4 **Compensação de latência** (RF-620) com teste automatizado de erro de sincronismo
 - [ ] 3.5 Consumidor de teste que valida erro < 16 ms sob carga
 

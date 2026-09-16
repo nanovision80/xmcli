@@ -31,6 +31,12 @@ const MASTER_HISTORY_MIN_MS: u16 = 100;
 /// interface consome o passado recente, não o histórico da música.
 const MASTER_HISTORY_MAX_MS: u16 = 5_000;
 
+/// Menor fila de snapshots aceita. Abaixo disso um soluço da interface já perde estado.
+const SNAPSHOT_CAPACITY_MIN: u16 = 8;
+
+/// Maior fila de snapshots aceita. Além disso só se acumula estado velho, que ninguém mostra.
+const SNAPSHOT_CAPACITY_MAX: u16 = 4_096;
+
 /// Configuração resolvida do programa.
 ///
 /// Depois de montada ela é **congelada**: nenhum laço quente lê configuração
@@ -64,6 +70,12 @@ pub struct Bus {
     /// fica atrás do mixado (RF-620) — mais a maior janela que uma visualização peça de uma
     /// vez. É o que decide quantos blocos cabem na fila.
     pub master_history_ms: u16,
+
+    /// Quantos snapshots de estado cabem na fila antes de o produtor começar a descartar.
+    ///
+    /// A medida é em snapshots, e não em tempo, porque a produção segue os ticks da música:
+    /// a taxa muda com o BPM e com o speed.
+    pub snapshot_capacity: u16,
 }
 
 /// Leitura de arquivos de entrada (RF-105).
@@ -126,6 +138,12 @@ impl Settings {
             u64::from(self.bus.master_history_ms),
             u64::from(MASTER_HISTORY_MIN_MS),
             u64::from(MASTER_HISTORY_MAX_MS),
+        )?;
+        check_range(
+            "bus.snapshot_capacity",
+            u64::from(self.bus.snapshot_capacity),
+            u64::from(SNAPSHOT_CAPACITY_MIN),
+            u64::from(SNAPSHOT_CAPACITY_MAX),
         )?;
         check_range("io.max_file_bytes", self.io.max_file_bytes, 1, u64::MAX)
     }

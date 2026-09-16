@@ -7,6 +7,7 @@
 use openmpt::module::{Logger, Module};
 
 use super::{CHANNELS, Engine, EngineError};
+use crate::bus::snapshot::{MAX_CHANNELS, Snapshot, Vu};
 
 pub struct OpenMptEngine {
     module: Module,
@@ -53,4 +54,37 @@ impl Engine for OpenMptEngine {
     fn duration_seconds(&mut self) -> f64 {
         self.module.get_duration_seconds()
     }
+
+    fn snapshot(&mut self) -> Snapshot {
+        // Canais além do teto de padrão dos quatro formatos só aparecem em módulos de
+        // extensões que este programa não abre; ignorá-los é preferível a truncar o arranjo
+        // em silêncio dentro do laço.
+        let channels = clamp_to_u16(self.module.get_num_channels()).min(MAX_CHANNELS as u16);
+        let mut snapshot = Snapshot {
+            order: clamp_to_u16(self.module.get_current_order()),
+            pattern: clamp_to_u16(self.module.get_current_pattern()),
+            row: clamp_to_u16(self.module.get_current_row()),
+            speed: clamp_to_u16(self.module.get_current_speed()).min(u16::from(u8::MAX)) as u8,
+            bpm: clamp_to_u16(self.module.get_current_tempo()),
+            voices: clamp_to_u16(self.module.get_current_playing_channels()),
+            channels,
+            ..Snapshot::IDLE
+        };
+
+        for index in 0..channels {
+            snapshot.vu[usize::from(index)] = Vu {
+                left: self.module.get_current_channel_vu_left(i32::from(index)),
+                right: self.module.get_current_channel_vu_right(i32::from(index)),
+            };
+        }
+        snapshot
+    }
+}
+
+/// Converte uma contagem do libopenmpt, que usa `int` e responde negativo quando não sabe.
+///
+/// Antes do primeiro tick, e depois do fim da música, posição e tempo não existem: o valor
+/// negativo vira zero, que é o mesmo que o estado ocioso mostra.
+fn clamp_to_u16(value: i32) -> u16 {
+    u16::try_from(value.max(0)).unwrap_or(u16::MAX)
 }

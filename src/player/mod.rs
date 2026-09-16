@@ -12,6 +12,8 @@ pub use openmpt::OpenMptEngine;
 
 use thiserror::Error;
 
+use crate::bus::snapshot::Snapshot;
+
 /// Canais na saída. Todo o caminho de áudio é estéreo intercalado.
 pub const CHANNELS: usize = 2;
 
@@ -38,6 +40,12 @@ pub trait Engine {
 
     /// Duração estimada da música, em segundos.
     fn duration_seconds(&mut self) -> f64;
+
+    /// Onde a música está agora, para o barramento de visualização (RF-521).
+    ///
+    /// Vale para o instante do último quadro renderizado: quem chama é o laço de render, e é
+    /// ele que sabe em que quadro esse instante cai.
+    fn snapshot(&mut self) -> Snapshot;
 }
 
 /// Constrói o motor desta build para o módulo dado.
@@ -64,6 +72,7 @@ pub mod test_tone {
     //! libopenmpt — é o segundo implementador que justifica o trait [`Engine`].
 
     use super::{CHANNELS, Engine};
+    use crate::bus::snapshot::Snapshot;
 
     /// Frequência da senoide, em Hz.
     const FREQUENCY_HZ: f32 = 440.0;
@@ -102,6 +111,11 @@ pub mod test_tone {
 
         fn duration_seconds(&mut self) -> f64 {
             self.remaining_frames as f64 / f64::from(self.sample_rate)
+        }
+
+        /// Uma senoide não tem padrão, linha nem canal de tracker: o estado é o ocioso.
+        fn snapshot(&mut self) -> Snapshot {
+            Snapshot::IDLE
         }
     }
 }
