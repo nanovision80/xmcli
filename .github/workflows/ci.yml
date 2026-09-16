@@ -41,7 +41,14 @@ jobs:
 
       - name: Instalar libopenmpt (macOS)
         if: runner.os == 'macOS'
-        run: brew install libopenmpt
+        # O openmpt-sys so emite `-lopenmpt`: sem o prefixo do Homebrew no ambiente,
+        # o clang nao acha a biblioteca e o link falha.
+        run: |
+          brew install libopenmpt
+          prefix="$(brew --prefix)"
+          echo "LIBRARY_PATH=$prefix/lib" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$prefix/lib" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$prefix/lib/pkgconfig" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:

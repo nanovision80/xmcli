@@ -1,0 +1,5 @@
+# rustfmt.toml exige newline_style = "Unix"; sem isto o checkout no Windows traz CRLF
+# e `cargo fmt --check` acusa "Incorrect newline style" em todo arquivo.
+* text=auto eol=lf
+*.png binary
+*.wav binary
