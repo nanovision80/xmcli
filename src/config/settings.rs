@@ -23,6 +23,14 @@ const LATENCY_MIN_MS: u16 = 1;
 /// Maior latência aceita, em ms. Acima disso a compensação de RF-620 fica visível.
 const LATENCY_MAX_MS: u16 = 500;
 
+/// Menor histórico aceito no barramento master, em ms. Abaixo de uma janela de FFT o
+/// espectro não teria o que analisar.
+const MASTER_HISTORY_MIN_MS: u16 = 100;
+
+/// Maior histórico aceito no barramento master, em ms. Mais que isso é memória parada: a
+/// interface consome o passado recente, não o histórico da música.
+const MASTER_HISTORY_MAX_MS: u16 = 5_000;
+
 /// Configuração resolvida do programa.
 ///
 /// Depois de montada ela é **congelada**: nenhum laço quente lê configuração
@@ -31,6 +39,7 @@ const LATENCY_MAX_MS: u16 = 500;
 #[serde(deny_unknown_fields)]
 pub struct Settings {
     pub audio: Audio,
+    pub bus: Bus,
     pub io: Io,
     pub log: Log,
 }
@@ -43,6 +52,18 @@ pub struct Audio {
     pub sample_rate: u32,
     /// Latência alvo do dispositivo, em milissegundos.
     pub latency_ms: u16,
+}
+
+/// Barramento de visualização (RF-309, RF-620).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bus {
+    /// Quanto do passado recente o barramento master guarda, em milissegundos.
+    ///
+    /// Precisa cobrir o buffer do dispositivo — a interface consome o tempo *audível*, que
+    /// fica atrás do mixado (RF-620) — mais a maior janela que uma visualização peça de uma
+    /// vez. É o que decide quantos blocos cabem na fila.
+    pub master_history_ms: u16,
 }
 
 /// Leitura de arquivos de entrada (RF-105).
@@ -99,6 +120,12 @@ impl Settings {
             u64::from(self.audio.latency_ms),
             u64::from(LATENCY_MIN_MS),
             u64::from(LATENCY_MAX_MS),
+        )?;
+        check_range(
+            "bus.master_history_ms",
+            u64::from(self.bus.master_history_ms),
+            u64::from(MASTER_HISTORY_MIN_MS),
+            u64::from(MASTER_HISTORY_MAX_MS),
         )?;
         check_range("io.max_file_bytes", self.io.max_file_bytes, 1, u64::MAX)
     }

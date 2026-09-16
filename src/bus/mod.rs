@@ -11,6 +11,7 @@
 //! 3. **Toda mensagem carrega o quadro em que ocorre** ([`Stamped`]), porque a interface
 //!    consome o tempo *audível*, não o mais recente produzido (invariante 4, RF-620).
 
+pub mod master;
 mod queue;
 
 pub use queue::{Receiver, Sender, Stamped, channel};

@@ -373,7 +373,10 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
 - [x] 3.1 `src/bus/`: filas SPSC sem lock, tipos de mensagem, **carimbo de amostra** em tudo
       — *os tipos de mensagem entram junto com quem os produz: o PCM master em 3.2, o
       snapshot de estado em 3.3. Aqui fica só a primitiva que todos usam.*
-- [ ] 3.2 Barramento master pós-mix (RF-309)
+- [x] 3.2 Barramento master pós-mix (RF-309)
+      — *a derivação para o laço de render entra na 3.4, junto com a compensação de
+      latência: é ela que traz o primeiro consumidor. Aqui ficam o bloco, o fatiamento
+      carimbado e a capacidade vinda de `bus.master_history_ms`.*
 - [ ] 3.3 Snapshot de estado por tick: order/row/tick/BPM/speed e estado por canal
 - [ ] 3.4 **Compensação de latência** (RF-620) com teste automatizado de erro de sincronismo
 - [ ] 3.5 Consumidor de teste que valida erro < 16 ms sob carga

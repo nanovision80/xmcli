@@ -3,6 +3,9 @@
     "sample_rate": 44100,
     "latency_ms": 30
   },
+  "bus": {
+    "master_history_ms": 500
+  },
   "io": {
     "max_file_bytes": 268435456
   },
