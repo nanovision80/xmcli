@@ -75,7 +75,7 @@ pub fn play(
     let (mut producer, mut consumer) =
         HeapRb::<f32>::new(capacity.max(BLOCK_FRAMES * CHANNELS)).split();
 
-    let clock = Clock::new();
+    let clock = Clock::new(sample_rate);
     let callback_clock = Arc::clone(&clock);
 
     let stream = device
@@ -98,7 +98,7 @@ pub fn play(
                         callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
                     }
                 }
-                callback_clock.advance((out.len() / CHANNELS) as u64);
+                callback_clock.deliver((out.len() / CHANNELS) as u64);
             },
             |error| tracing::warn!(%error, "erro no fluxo de áudio"),
             None,

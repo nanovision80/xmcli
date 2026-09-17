@@ -381,7 +381,13 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       — *com o motor externo o estado é amostrado por bloco de render, não por tick, e o
       estado por canal é o VU: o libopenmpt não expõe tick, nota nem instrumento por
       canal (§6). Esses campos entram na etapa 8, com o motor que os conhece.*
-- [ ] 3.4 **Compensação de latência** (RF-620) com teste automatizado de erro de sincronismo
+- [x] 3.4 **Compensação de latência** (RF-620) com teste automatizado de erro de sincronismo
+      — *o relógio publica uma **âncora**: o instante em que o quadro 0 soou. A posição
+      audível é a reta que sai dela, e cada entrega ao dispositivo a recorrige, de modo que
+      a imagem segue o ritmo real do hardware em vez de um ritmo suposto. Guardar a âncora,
+      e não o par (instante, contador) da última entrega, dispensa ler dois valores de uma
+      vez: um par lido pela metade erra exatamente um buffer — o defeito que a compensação
+      existe para eliminar. Medido em `tests/sync.rs`: 0,03 ms contra 20 ms sem compensação.*
 - [ ] 3.5 Consumidor de teste que valida erro < 16 ms sob carga
 
 > **Marco:** o erro de sincronismo é medido, não presumido. Construir a UI antes disto é
