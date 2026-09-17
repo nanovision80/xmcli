@@ -388,10 +388,20 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       e não o par (instante, contador) da última entrega, dispensa ler dois valores de uma
       vez: um par lido pela metade erra exatamente um buffer — o defeito que a compensação
       existe para eliminar. Medido em `tests/sync.rs`: 0,03 ms contra 20 ms sem compensação.*
-- [ ] 3.5 Consumidor de teste que valida erro < 16 ms sob carga
+- [x] 3.5 Consumidor de teste que valida erro < 16 ms sob carga
+      — *o consumidor segue o barramento master no tempo audível: guarda o bloco que contém o
+      quadro que está soando e espia um à frente, já que a fila só deixa retirar. Cada amostra
+      publicada carrega o índice do próprio quadro, então o teste confere, olhando só para o
+      som, que o bloco mostrado é o carimbado. Com metade dos processadores queimando ciclos:
+      0,08 ms contra 19,98 ms de um consumidor que seguisse o bloco mais novo.*
 
-> **Marco:** o erro de sincronismo é medido, não presumido. Construir a UI antes disto é
-> construir sobre um relógio errado.
+> **Marco atingido.** O erro de sincronismo é medido, não presumido: 0,04 ms na máquina quieta
+> e 0,08 ms sob carga, contra os 16 ms de orçamento e os 20 ms de quem ignora o buffer do
+> dispositivo. Construir a UI antes disto seria construir sobre um relógio errado.
+>
+> A medida separa "o modelo errou" de "o agendador atrapalhou": leitura demorada, entrega
+> simulada atrasada ou vencida não contam, e a corrida falha se sobrar pouca amostra válida —
+> uma máquina que não sustenta a medição precisa dizer isso, não devolver um número bonito.
 
 ### Etapa 4 — Camada de terminal
 *Depende de: 0 (pode correr em paralelo com 2–3). Produz: superfície de desenho confiável.*
