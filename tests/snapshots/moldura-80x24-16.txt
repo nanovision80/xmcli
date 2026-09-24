@@ -1,7 +1,7 @@
 80x24 16
 --- texto
 |+------------------------------------------------------------------------------+|
-||                                                                              ||
+|| xmcli  >> Space Debris by Captain of Image, 1991. Greetings to all tracke << ||
 |+------------------------------------------------------------------------------+|
 ||                                                                              ||
 ||                                                                              ||
@@ -28,27 +28,28 @@
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 |abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
-|abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 --- legenda
 a  texto idx(8)  fundo idx(0)
-b  texto idx(0)  fundo idx(0)
+b  texto idx(2)  fundo idx(0)
+c  texto idx(0)  fundo idx(0)

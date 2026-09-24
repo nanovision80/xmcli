@@ -44,6 +44,9 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   moldura do layout estilo Winamp — cabeçalho, palco com toda a altura livre, transporte,
   seek e status — e sai com `q` ou `ctrl+c` (RF-501, RF-513). Abaixo de 80×24 mostra o
   tamanho mínimo. Fora de um terminal, toca como antes.
+- Marquee no cabeçalho: título do módulo e nome do arquivo rolando no ritmo clássico —
+  parado no começo, corre até o fim, parado no fim, volta —, pelo relógio de parede, não
+  pelo da música. Velocidade e pausa em `ui.marquee` (RF-502).
 - `config/keymap.json` (teclas → ações) e `config/palettes.json` (temas de cor), validados
   na compilação como o `defaults.json`; o tema vem de `ui.theme`.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.

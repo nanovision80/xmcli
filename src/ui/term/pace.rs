@@ -154,6 +154,7 @@ impl Pacer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Marquee;
 
     /// Um `write` que o buffer do sistema absorveu na hora.
     const FAST: Duration = Duration::from_micros(10);
@@ -169,6 +170,10 @@ mod tests {
             throughput_headroom_percent: 50,
             recover_frames: 3,
             recover_frames_max: 12,
+            marquee: Marquee {
+                chars_per_second: 1,
+                pause_ms: 0,
+            },
         }
     }
 

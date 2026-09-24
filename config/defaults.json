@@ -22,6 +22,10 @@
     "throughput_smoothing_percent": 20,
     "throughput_headroom_percent": 90,
     "recover_frames": 120,
-    "recover_frames_max": 1920
+    "recover_frames_max": 1920,
+    "marquee": {
+      "chars_per_second": 6,
+      "pause_ms": 2000
+    }
   }
 }

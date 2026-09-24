@@ -1,10 +1,13 @@
-//! A moldura do player e o aviso de terminal pequeno.
+//! A moldura do player, o cabeçalho e o aviso de terminal pequeno.
 //!
 //! Em ASCII de 7 bits, porque é o modo padrão e sempre suficiente (§3.5 dos requisitos): a
 //! moldura precisa aparecer inteira em qualquer terminal, com qualquer fonte.
 
-use crate::config::Theme;
+use std::time::Duration;
+
+use crate::config::{Marquee, Theme};
 use crate::ui::chrome::layout::{Layout, MIN_HEIGHT, MIN_WIDTH, Rect, layout};
+use crate::ui::chrome::marquee;
 use crate::ui::term::buffer::{Buffer, Cell};
 use crate::ui::term::color::Rgb;
 
@@ -15,10 +18,28 @@ const HORIZONTAL: char = '-';
 /// Linha vertical da moldura.
 const VERTICAL: char = '|';
 
-/// Desenha o quadro inteiro do cromo: fundo, moldura e, se o terminal for pequeno, o aviso.
+/// O que vem antes do título no cabeçalho, como no desenho do RF-500.
+const HEADER_PREFIX: &str = " xmcli  >> ";
+/// O que fecha o título no cabeçalho.
+const HEADER_SUFFIX: &str = " << ";
+// Os dois são ASCII, então cada byte é uma célula.
+const PREFIX_WIDTH: u16 = HEADER_PREFIX.len() as u16;
+const SUFFIX_WIDTH: u16 = HEADER_SUFFIX.len() as u16;
+
+/// O que o quadro mostra além do tema.
+pub struct View<'a> {
+    /// O título que o marquee rola: título do módulo e nome do arquivo (RF-502).
+    pub title: &'a str,
+    pub marquee: &'a Marquee,
+    /// Tempo desde que a faixa apareceu na tela; é o que move o marquee.
+    pub elapsed: Duration,
+}
+
+/// Desenha o quadro inteiro do cromo: fundo, moldura, cabeçalho e, se o terminal for pequeno,
+/// o aviso.
 ///
 /// Pinta todas as células, de modo que o quadro anterior não precisa ser apagado antes.
-pub fn draw(frame: &mut Buffer, theme: &Theme) {
+pub fn draw(frame: &mut Buffer, theme: &Theme, view: &View) {
     let background = Rgb::from(theme.background);
     let blank = Cell {
         ch: ' ',
@@ -32,8 +53,13 @@ pub fn draw(frame: &mut Buffer, theme: &Theme) {
         fg: Rgb::from(theme.frame),
         bg: background,
     };
+    let text = Cell {
+        fg: Rgb::from(theme.text),
+        ..blank
+    };
     match layout(frame.width(), frame.height()) {
         Layout::Full(regions) => {
+            header(frame, regions.header, view, text);
             // Uma linha de moldura acima de cada parte, e a última embaixo de tudo.
             let last = frame.height() - 1;
             for y in [
@@ -54,10 +80,6 @@ pub fn draw(frame: &mut Buffer, theme: &Theme) {
             sides(frame, bottom, border);
         }
         Layout::TooSmall => {
-            let text = Cell {
-                fg: Rgb::from(theme.text),
-                ..blank
-            };
             let message = format!(
                 "xmcli precisa de {MIN_WIDTH}x{MIN_HEIGHT}; este terminal tem {}x{}",
                 frame.width(),
@@ -66,6 +88,20 @@ pub fn draw(frame: &mut Buffer, theme: &Theme) {
             write(frame, 0, 0, &message, text);
         }
     }
+}
+
+/// O cabeçalho: o nome do programa e o título rolando entre `>>` e `<<`.
+fn header(frame: &mut Buffer, rect: Rect, view: &View, style: Cell) {
+    let window = usize::from(rect.width.saturating_sub(PREFIX_WIDTH + SUFFIX_WIDTH));
+    let len = view.title.chars().count();
+    let hidden = marquee::offset(len, window, view.elapsed, view.marquee);
+    let visible: String = view.title.chars().skip(hidden).take(window).collect();
+
+    write(frame, rect.x, rect.y, HEADER_PREFIX, style);
+    write(frame, rect.x + PREFIX_WIDTH, rect.y, &visible, style);
+    // `window` saiu de `rect.width`, que é u16.
+    let close = rect.x + PREFIX_WIDTH + window as u16;
+    write(frame, close, rect.y, HEADER_SUFFIX, style);
 }
 
 fn fill(frame: &mut Buffer, cell: Cell) {

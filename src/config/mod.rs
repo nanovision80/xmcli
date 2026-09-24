@@ -18,7 +18,7 @@ mod palette;
 pub use keymap::{Action, Key, KeyCode, Keymap, KeymapError, parse_key};
 pub use palette::{Color, Theme};
 
-pub use settings::{LogLevel, OutOfRange, Settings, Ui};
+pub use settings::{LogLevel, Marquee, OutOfRange, Settings, Ui};
 
 use std::path::{Path, PathBuf};
 

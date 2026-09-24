@@ -51,6 +51,13 @@ const BYTES_MIN: u64 = 1_024;
 /// diferente em cada uma.
 const FRAME_BYTES_MAX: u64 = 16 * 1_024 * 1_024;
 
+/// Maior velocidade aceita para o marquee, em caracteres por segundo. Mais rápido que isso o
+/// título passa sem que dê para ler.
+const MARQUEE_SPEED_MAX: u16 = 60;
+
+/// Maior pausa aceita nas pontas do marquee, em ms. Mais que isso o título parece parado.
+const MARQUEE_PAUSE_MAX_MS: u16 = 10_000;
+
 /// Maior percentual aceito; o menor é 1, porque zero anularia o que o percentual mede.
 const PERCENT_MAX: u8 = 100;
 
@@ -137,6 +144,17 @@ pub struct Ui {
     pub recover_frames: u32,
     /// Teto da espera por subir: cada subida que não se sustenta dobra a espera até aqui.
     pub recover_frames_max: u32,
+    pub marquee: Marquee,
+}
+
+/// Rolagem do título no cabeçalho (RF-502).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Marquee {
+    /// Velocidade da rolagem, em caracteres por segundo.
+    pub chars_per_second: u16,
+    /// Quanto o título fica parado em cada ponta antes de seguir, em ms.
+    pub pause_ms: u16,
 }
 
 /// Nível de detalhamento do log.
@@ -244,6 +262,18 @@ impl Ui {
             u64::from(self.recover_frames_max),
             1,
             u64::from(u32::MAX),
+        )?;
+        check_range(
+            "ui.marquee.chars_per_second",
+            u64::from(self.marquee.chars_per_second),
+            1,
+            u64::from(MARQUEE_SPEED_MAX),
+        )?;
+        check_range(
+            "ui.marquee.pause_ms",
+            u64::from(self.marquee.pause_ms),
+            0,
+            u64::from(MARQUEE_PAUSE_MAX_MS),
         )
     }
 }

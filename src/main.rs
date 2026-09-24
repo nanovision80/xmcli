@@ -15,6 +15,7 @@ use xmcli::formats::{self, FormatError};
 use xmcli::info::Report;
 use xmcli::io::{self, Input};
 use xmcli::player;
+use xmcli::ui::chrome::marquee;
 use xmcli::ui::term::color::{self, ColorDepth};
 use xmcli::ui::{self, Exit, Setup};
 
@@ -171,7 +172,11 @@ fn play_one(
     )?;
     announce(playback.duration_seconds);
     let exit = match setup {
-        Some(setup) => ui::run(&mut playback, setup),
+        Some(setup) => ui::run(
+            &mut playback,
+            setup,
+            &marquee::text(&song.title, &file_name(&input.name)),
+        ),
         None => Ok(Exit::Ended),
     };
     if exit.is_err() {
@@ -210,6 +215,14 @@ fn render_to_file(
 
 fn load(path: &Path, settings: &Settings) -> anyhow::Result<Input> {
     Ok(io::read(path, settings.io.max_file_bytes)?)
+}
+
+/// O nome do arquivo sem o diretório; para a entrada padrão, o nome que ela já tem.
+fn file_name(name: &str) -> String {
+    Path::new(name).file_name().map_or_else(
+        || name.to_owned(),
+        |file| file.to_string_lossy().into_owned(),
+    )
 }
 
 /// Relata a falha de um arquivo sem derrubar a lista, e agrava o código de saída (RF-707).

@@ -487,7 +487,14 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       reprodução numa linha controlável (com a fila de comandos da 2.6) e o keymap da 5.8.
       "Prioridade de painéis" ainda não tem o que priorizar: os painéis laterais chegam com a
       playlist (5.9) e o mixer (9.3).*
-- [ ] 5.2 Marquee do título com rolagem contínua (RF-502)
+- [x] 5.2 Marquee do título com rolagem contínua (RF-502)
+      — *`ui/chrome/marquee.rs`: o deslocamento é função pura do tempo desde que a faixa
+      apareceu, no ritmo do relógio de parede — pausar a música não congela o título. Parado
+      no começo, corre um caractere por passo até o fim aparecer, parado no fim, volta. Cada
+      posição fica um passo na tela, inclusive a última, senão com pausa zero o fim nunca
+      apareceria. Velocidade e pausa em `ui.marquee`. O texto é título e nome do arquivo, ou
+      só o nome se o módulo não tiver título. O modo do palco, à direita no desenho do RF-500,
+      entra com o palco (6.7).*
 - [ ] 5.3 Transporte com estado visual do botão ativo (RF-503)
 - [ ] 5.4 Barra de seek ligada ao *fast-forward* silencioso (RF-504, RF-207)
 - [ ] 5.5 Display de tempo alternável entre decorrido e restante (RF-505)

@@ -1,7 +1,7 @@
 80x24 truecolor
 --- texto
 |+------------------------------------------------------------------------------+|
-|| xmcli  >> Space Debris by Captain of Image, 1991. Greetings to all tracke << ||
+|| xmcli  >> n of Image, 1991. Greetings to all trackers -- space_debris.mod << ||
 |+------------------------------------------------------------------------------+|
 ||                                                                              ||
 ||                                                                              ||

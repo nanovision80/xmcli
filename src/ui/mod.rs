@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use crate::audio::device::Playback;
 use crate::config::{Action, Keymap, Settings, Theme};
+use crate::ui::chrome::frame::View;
 use crate::ui::term::Session;
 use crate::ui::term::buffer::Buffer;
 use crate::ui::term::color::ColorDepth;
@@ -36,23 +37,29 @@ pub struct Setup<'a> {
     pub colors: ColorDepth,
 }
 
-/// Mostra o player até a música acabar ou o usuário sair.
+/// Mostra o player até a música acabar ou o usuário sair; `title` é o que o marquee rola.
 ///
 /// Quadro a quadro: desenha, escreve de uma vez, e espera o intervalo que o [`Pacer`] manda
 /// atendendo as teclas. A interface perde quadros, o áudio nunca (CLAUDE.md §2, invariante 2):
 /// nada aqui espera pela linha de áudio nem a faz esperar.
-pub fn run(playback: &mut Playback, setup: &Setup) -> io::Result<Exit> {
+pub fn run(playback: &mut Playback, setup: &Setup, title: &str) -> io::Result<Exit> {
     let mut session = Session::enter()?;
     let mut painter = Painter::new(setup.colors);
     let mut pacer = Pacer::new(&setup.settings.ui, setup.colors);
     let (width, height) = session.size()?;
     let mut frame = Buffer::new(width, height);
+    let opened = Instant::now();
 
     loop {
         if playback.is_finished() {
             return Ok(Exit::Ended);
         }
-        chrome::frame::draw(&mut frame, setup.theme);
+        let view = View {
+            title,
+            marquee: &setup.settings.ui.marquee,
+            elapsed: opened.elapsed(),
+        };
+        chrome::frame::draw(&mut frame, setup.theme, &view);
 
         let started = Instant::now();
         let bytes = painter.present(&frame, session.out())?;
