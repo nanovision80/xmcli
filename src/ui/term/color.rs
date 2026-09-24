@@ -76,6 +76,137 @@ pub fn detect(var: impl Fn(&str) -> Option<OsString>, mono: bool) -> ColorDepth 
     ColorDepth::Ansi16
 }
 
+/// Uma cor em 24 bits — o que o cromo e o palco pedem, antes de saber o terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+impl Rgb {
+    pub const BLACK: Self = Self { r: 0, g: 0, b: 0 };
+}
+
+/// Uma cor já na forma que o terminal aceita.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ink {
+    /// A cor padrão do terminal: a única que existe sem cor.
+    Default,
+    /// Índice nas 16 cores ANSI, de 0 a 15.
+    Ansi16(u8),
+    /// Índice na paleta de 256 cores do xterm.
+    Ansi256(u8),
+    Rgb(Rgb),
+}
+
+impl ColorDepth {
+    /// A cor mais próxima de `color` que esta profundidade consegue mostrar.
+    pub fn ink(self, color: Rgb) -> Ink {
+        match self {
+            Self::Mono => Ink::Default,
+            Self::Ansi16 => Ink::Ansi16(nearest_ansi16(color)),
+            Self::Ansi256 => Ink::Ansi256(nearest_ansi256(color)),
+            Self::TrueColor => Ink::Rgb(color),
+        }
+    }
+}
+
+/// As 16 cores ANSI com os valores padrão do xterm.
+///
+/// O terminal é livre para redefini-las, e o tema do usuário quase sempre redefine; estes são
+/// só o ponto de referência para escolher a mais próxima.
+const ANSI16_XTERM: [Rgb; 16] = [
+    rgb(0, 0, 0),
+    rgb(205, 0, 0),
+    rgb(0, 205, 0),
+    rgb(205, 205, 0),
+    rgb(0, 0, 238),
+    rgb(205, 0, 205),
+    rgb(0, 205, 205),
+    rgb(229, 229, 229),
+    rgb(127, 127, 127),
+    rgb(255, 0, 0),
+    rgb(0, 255, 0),
+    rgb(255, 255, 0),
+    rgb(92, 92, 255),
+    rgb(255, 0, 255),
+    rgb(0, 255, 255),
+    rgb(255, 255, 255),
+];
+
+/// Níveis de cada eixo do cubo 6×6×6 da paleta de 256 cores do xterm (`256colres.pl`).
+const CUBE_LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+
+/// Índice da primeira cor do cubo: as 16 anteriores são as ANSI, que o tema redefine.
+const CUBE_FIRST: u8 = 16;
+
+/// Índice do primeiro cinza da rampa que fecha a paleta de 256.
+const GRAY_FIRST: u8 = 232;
+
+/// Quantos cinzas a rampa tem.
+const GRAY_STEPS: u8 = 24;
+
+/// Nível do primeiro cinza da rampa; os seguintes sobem de [`GRAY_STEP`] em [`GRAY_STEP`].
+const GRAY_BASE: u8 = 8;
+
+/// Distância entre dois cinzas vizinhos da rampa.
+const GRAY_STEP: u8 = 10;
+
+const fn rgb(r: u8, g: u8, b: u8) -> Rgb {
+    Rgb { r, g, b }
+}
+
+/// Quadrado da distância euclidiana entre duas cores.
+///
+/// Sem peso perceptual: o erro de escolher o vizinho errado numa paleta de 16 é pequeno perto
+/// do erro do próprio tema, que redefine as cores.
+fn distance(a: Rgb, b: Rgb) -> u32 {
+    let axis = |x: u8, y: u8| u32::from(x.abs_diff(y)).pow(2);
+    axis(a.r, b.r) + axis(a.g, b.g) + axis(a.b, b.b)
+}
+
+fn nearest_ansi16(color: Rgb) -> u8 {
+    (0..)
+        .zip(ANSI16_XTERM)
+        .min_by_key(|&(_, candidate)| distance(color, candidate))
+        .map_or(0, |(index, _)| index)
+}
+
+/// O cubo e a rampa de cinzas competem, porque o cubo tem só seis cinzas e a rampa não tem
+/// cor nenhuma: um cinza médio fica melhor na rampa, um vermelho, no cubo.
+fn nearest_ansi256(color: Rgb) -> u8 {
+    let (r, g, b) = (
+        nearest_level(color.r),
+        nearest_level(color.g),
+        nearest_level(color.b),
+    );
+    let cube_color = rgb(CUBE_LEVELS[r], CUBE_LEVELS[g], CUBE_LEVELS[b]);
+    let axis = CUBE_LEVELS.len();
+    let cube_index = CUBE_FIRST + (r * axis * axis + g * axis + b) as u8;
+
+    let (gray_index, gray_color) = (0..GRAY_STEPS)
+        .map(|step| {
+            let level = GRAY_BASE + step * GRAY_STEP;
+            (GRAY_FIRST + step, rgb(level, level, level))
+        })
+        .min_by_key(|&(_, gray)| distance(color, gray))
+        .unwrap_or((GRAY_FIRST, rgb(GRAY_BASE, GRAY_BASE, GRAY_BASE)));
+
+    if distance(color, gray_color) < distance(color, cube_color) {
+        gray_index
+    } else {
+        cube_index
+    }
+}
+
+/// Posição do nível do cubo mais próximo de `value`.
+fn nearest_level(value: u8) -> usize {
+    (0..CUBE_LEVELS.len())
+        .min_by_key(|&index| CUBE_LEVELS[index].abs_diff(value))
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,5 +296,33 @@ mod tests {
             with_env(&[(TERM, "xterm-256color"), (COLORTERM, "truecolor")], true),
             ColorDepth::Mono
         );
+    }
+
+    #[test]
+    fn cada_profundidade_mostra_a_cor_como_pode() {
+        let red = rgb(255, 0, 0);
+        assert_eq!(ColorDepth::Mono.ink(red), Ink::Default);
+        assert_eq!(ColorDepth::Ansi16.ink(red), Ink::Ansi16(9));
+        // 16 + 5·36: o vértice vermelho do cubo.
+        assert_eq!(ColorDepth::Ansi256.ink(red), Ink::Ansi256(196));
+        assert_eq!(ColorDepth::TrueColor.ink(red), Ink::Rgb(red));
+    }
+
+    #[test]
+    fn dezesseis_cores_separam_normal_de_brilhante() {
+        assert_eq!(nearest_ansi16(rgb(190, 10, 10)), 1);
+        assert_eq!(nearest_ansi16(rgb(250, 90, 90)), 9);
+        assert_eq!(nearest_ansi16(rgb(20, 20, 20)), 0);
+    }
+
+    #[test]
+    fn cinza_medio_vai_para_a_rampa_e_cor_para_o_cubo() {
+        // 8 + 12·10 = 128: exato na rampa, a 7 do nível 135 do cubo.
+        assert_eq!(nearest_ansi256(rgb(128, 128, 128)), GRAY_FIRST + 12);
+        // Os cantos do cubo são cores exatas.
+        assert_eq!(nearest_ansi256(rgb(0, 0, 0)), CUBE_FIRST);
+        assert_eq!(nearest_ansi256(rgb(255, 255, 255)), 231);
+        // 95/135/175 em r/g/b: nível 1, 2 e 3.
+        assert_eq!(nearest_ansi256(rgb(95, 135, 175)), 16 + 36 + 2 * 6 + 3);
     }
 }

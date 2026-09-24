@@ -429,8 +429,14 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       `COLORTERM=truecolor|24bit`, `TERM=*-direct` e `WT_SESSION` (Windows Terminal, onde não
       há `TERM`) dão truecolor; `TERM=*256color*` dá 256; o resto, 16. Na dúvida, desce. Até a
       etapa 5 o único consumidor é o log de `-v`.*
-- [ ] 4.4 Buffer de células e escrita com **coalescência de SGR**, um `write` por quadro
+- [x] 4.4 Buffer de células e escrita com **coalescência de SGR**, um `write` por quadro
       (RF-515, RF-621)
+      — *a grade guarda cor em 24 bits; o `Painter` converte para a profundidade da 4.3 e só
+      então compara com o que está na tela, porque duas cores que caem no mesmo índice são a
+      mesma cor para quem olha. A caneta vale entre quadros, o cursor só é reaproveitado fora
+      da última coluna e caractere de controle vira `U+FFFD` — texto de módulo é hostil. O
+      orçamento `--max-frame-bytes` e a degradação em cascata do RF-621 entram com a medição
+      de throughput da 4.5, que é quem sabe quanto cabe.*
 - [ ] 4.5 Medição do throughput real do TTY e pacing adaptativo (RF-601, RF-622)
 - [ ] 4.6 `SIGWINCH` e reflow responsivo (RF-513)
 - [ ] 4.7 Harness de snapshot de terminal para os testes de UI

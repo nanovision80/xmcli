@@ -28,6 +28,10 @@ com o erro de sincronismo medido antes de existir a primeira tela.
 - Detecção da profundidade de cor do terminal — sem cor, 16, 256 ou truecolor — por `TERM`,
   `COLORTERM` e, no Windows Terminal, `WT_SESSION`, com `--mono` e `NO_COLOR` desligando a
   cor (RF-514). Por enquanto só aparece no log com `-v`.
+- Grade de células e pintura de quadros: só as células que mudaram vão para o terminal, a
+  sequência de cor só sai quando muda — inclusive de um quadro para o outro — e o quadro
+  inteiro vai num `write` só (RF-515, RF-604, RF-621). A comparação é feita depois de converter
+  a cor para o terminal, e caracteres de controle vindos de módulo não chegam a ele.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
 ### Corrigido
