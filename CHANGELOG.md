@@ -5,6 +5,36 @@ o projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+Fecha a etapa 3 do roteiro: o barramento de visualização que toda a interface vai consumir,
+com o erro de sincronismo medido antes de existir a primeira tela.
+
+### Adicionado
+
+- Filas SPSC sem lock e sem alocação depois da partida, com o quadro em que cada mensagem
+  ocorre carimbado nela. Fila cheia descarta a mensagem nova e conta a perda, para a interface
+  se ressincronizar (etapa 3.1).
+- Barramento master pós-mix em blocos fixos de 256 quadros, com o histórico configurável em
+  `bus.master_history_ms` (RF-309).
+- Snapshot de estado por bloco de render: order, padrão, linha, speed, BPM e nível por canal,
+  com a profundidade da fila em `bus.snapshot_capacity` (RF-521).
+- Compensação de latência do dispositivo: o relógio publica o instante em que o quadro 0 soou
+  e a posição audível interpola entre uma entrega e a seguinte (RF-620). Contra um
+  dispositivo simulado, o erro é de 0,04 ms com a máquina quieta e 0,08 ms com metade dos
+  processadores ocupados, contra 20 ms sem compensação e um orçamento de 16 ms.
+- Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
+
+### Corrigido
+
+- O fim da música não conta mais como estouro do dispositivo. Tocar um módulo até o fim
+  terminava com o aviso errado de elevar `audio.latency_ms` (RF-402).
+
+### Notas
+
+- Tick, nota e instrumento por canal ainda não entram no snapshot: o libopenmpt não os expõe.
+  Chegam com o motor próprio da etapa 8.
+- O sincronismo foi medido contra um dispositivo simulado. A medição contra hardware real
+  está prevista para a etapa 11.
+
 ## [0.1.0] — 2026-09-16
 
 Primeira versão publicada. Fecha a fase **F0** do roteiro (etapas 0 a 2): o player
