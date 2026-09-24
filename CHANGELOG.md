@@ -5,6 +5,12 @@ o projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Corrigido
+
+- Depois de um estouro do dispositivo, o fim da música era cortado: o relógio contava como
+  tocado o silêncio que o estouro inseriu, e a reprodução se dava por terminada antes do
+  último quadro soar. Agora ele conta só os quadros de música (RF-406).
+
 ## [0.2.0] — 2026-09-24
 
 Primeira versão com interface. Fecha as etapas 3 e 4 do roteiro — o barramento de

@@ -6,7 +6,8 @@
 //!
 //! São duas contas distintas, e confundi-las é o defeito que RF-620 descreve:
 //!
-//! * [`Clock::frames_played`] — quadros **entregues** ao dispositivo. Anda aos saltos, um
+//! * [`Clock::frames_played`] — quadros de música **entregues** ao dispositivo; o silêncio
+//!   de um estouro não conta, porque não é música. Anda aos saltos, um
 //!   buffer por callback. Serve para saber quando a música acabou de sair.
 //! * [`Clock::audible_frame`] — quadro que está **soando agora**. Anda continuamente, porque
 //!   interpola entre um callback e o seguinte. É o que toda a interface consome.
@@ -64,7 +65,10 @@ impl Clock {
         })
     }
 
-    /// Registra quadros entregues ao dispositivo. Chamado de dentro do callback.
+    /// Registra quadros de música entregues ao dispositivo. Chamado de dentro do callback.
+    ///
+    /// Quadros, não o tamanho do buffer: num estouro, o resto do buffer é silêncio que o
+    /// callback inventou, e contá-lo daria a música por terminada antes do último quadro soar.
     ///
     /// Não aloca, não bloqueia e não pode falhar: são dois `store` e um `Instant::now`
     /// (CLAUDE.md §2, invariante 1). O acúmulo lê o próprio valor anterior sem operação
@@ -92,7 +96,7 @@ impl Clock {
         self.finished.store(true, Ordering::Release);
     }
 
-    /// Quadros já entregues ao dispositivo.
+    /// Quadros de música já entregues ao dispositivo.
     pub fn frames_played(&self) -> u64 {
         self.frames_played.load(Ordering::Acquire)
     }

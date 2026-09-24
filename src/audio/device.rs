@@ -316,7 +316,7 @@ fn feed_device(out: &mut [f32], ring: &mut impl Consumer<Item = f32>, clock: &Cl
             clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
         }
     }
-    clock.deliver((out.len() / CHANNELS) as u64);
+    clock.deliver((taken / CHANNELS) as u64);
 }
 
 /// Escolhe o dispositivo pedido, ou o padrão do sistema (RF-401).
@@ -387,6 +387,18 @@ mod tests {
     }
 
     #[test]
+    fn estouro_parcial_entrega_so_a_musica() {
+        let clock = Clock::new(RATE);
+        let mut consumer = ring(CALLBACK_FRAMES / 2);
+        let mut out = [1.0; CALLBACK_FRAMES * CHANNELS];
+
+        feed_device(&mut out, &mut consumer, &clock);
+        assert_eq!(clock.frames_played(), (CALLBACK_FRAMES / 2) as u64);
+        assert_eq!(clock.underruns(), (CALLBACK_FRAMES / 2) as u64);
+        assert!(out[CALLBACK_FRAMES..].iter().all(|&sample| sample == 0.0));
+    }
+
+    #[test]
     fn anel_vazio_e_estouro_so_antes_do_fim() {
         let clock = Clock::new(RATE);
         let mut consumer = ring(0);
@@ -395,6 +407,8 @@ mod tests {
         feed_device(&mut out, &mut consumer, &clock);
         assert!(out.iter().all(|&sample| sample == 0.0));
         assert_eq!(clock.underruns(), CALLBACK_FRAMES as u64);
+        // O silêncio do estouro não é música entregue.
+        assert_eq!(clock.frames_played(), 0);
 
         clock.mark_finished();
         feed_device(&mut out, &mut consumer, &clock);
