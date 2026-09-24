@@ -17,13 +17,13 @@
 //!
 //! Quantas cores a superfície aceita é decidido à parte, em [`color`]. O quadro é desenhado
 //! numa grade de células ([`buffer`]) e chega ao terminal por [`paint`], no ritmo que [`pace`]
-//! decide. Mudança de tamanho do terminal chega por [`resize`].
+//! decide. Teclas e mudança de tamanho chegam por [`input`].
 
 pub mod buffer;
 pub mod color;
+pub mod input;
 pub mod pace;
 pub mod paint;
-pub mod resize;
 
 use std::io::{self, Stdout, Write};
 use std::panic;

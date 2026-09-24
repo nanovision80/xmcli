@@ -9,6 +9,11 @@
 /// Forma e validação da configuração; compartilhado com `build.rs`.
 mod settings;
 
+/// Teclas ligadas a ações (etapa 5.8); compartilhado com `build.rs`.
+mod keymap;
+
+pub use keymap::{Action, Key, KeyCode, Keymap, KeymapError, parse_key};
+
 pub use settings::{LogLevel, OutOfRange, Settings, Ui};
 
 use std::path::{Path, PathBuf};
@@ -18,6 +23,9 @@ use thiserror::Error;
 
 /// Padrões do projeto. Validados em tempo de compilação por `build.rs`.
 const DEFAULTS_JSON: &str = include_str!("../../config/defaults.json");
+
+/// Teclas padrão. Validadas em tempo de compilação por `build.rs`.
+const KEYMAP_JSON: &str = include_str!("../../config/keymap.json");
 
 /// Nome da aplicação, usado para localizar o diretório de configuração do usuário.
 const APP_NAME: &str = "xmcli";
@@ -102,6 +110,14 @@ pub fn resolve(
     let settings: Settings = serde_json::from_value(merged).map_err(ConfigError::Shape)?;
     settings.validate()?;
     Ok(settings)
+}
+
+/// As teclas padrão, resolvidas para consulta.
+pub fn keymap() -> Keymap {
+    let names = serde_json::from_str(KEYMAP_JSON)
+        .expect("config/keymap.json é validado em tempo de compilação por build.rs");
+    Keymap::from_names(names)
+        .expect("config/keymap.json é validado em tempo de compilação por build.rs")
 }
 
 /// Sobrepõe `patch` a `base`, descendo em objetos e substituindo qualquer outro valor.
@@ -263,6 +279,58 @@ mod tests {
         };
         assert_eq!(out_of_range.field, "ui.fps_min");
         assert_eq!(out_of_range.max, 30);
+    }
+
+    #[test]
+    fn teclas_padrao_sao_validas_e_q_sai() {
+        let key = parse_key("q").expect("q é tecla");
+        assert_eq!(keymap().action(key), Some(Action::Quit));
+    }
+
+    #[test]
+    fn tecla_com_modificadores_e_nomes() {
+        let key = |code, ctrl, alt| Key { code, ctrl, alt };
+        assert_eq!(
+            parse_key("ctrl+c"),
+            Ok(key(KeyCode::Char('c'), true, false))
+        );
+        assert_eq!(
+            parse_key("alt+ctrl+left"),
+            Ok(key(KeyCode::Left, true, true))
+        );
+        assert_eq!(
+            parse_key("space"),
+            Ok(key(KeyCode::Char(' '), false, false))
+        );
+        assert_eq!(parse_key("f12"), Ok(key(KeyCode::F(12), false, false)));
+        assert_eq!(
+            parse_key("ctrl++"),
+            Ok(key(KeyCode::Char('+'), true, false))
+        );
+        assert_eq!(parse_key("Q"), Ok(key(KeyCode::Char('Q'), false, false)));
+    }
+
+    #[test]
+    fn tecla_desconhecida_e_recusada() {
+        for name in ["f13", "f0", "shift+a", "espaço", "", " ", "ctrl+"] {
+            assert!(
+                matches!(parse_key(name), Err(KeymapError::UnknownKey(_))),
+                "{name:?} deveria ser recusada"
+            );
+        }
+    }
+
+    #[test]
+    fn a_mesma_tecla_escrita_duas_vezes_e_recusada() {
+        // A ordem dos modificadores não muda a tecla: um dos dois atalhos seria ignorado calado.
+        let same = [("ctrl+alt+x", Action::Quit), ("alt+ctrl+x", Action::Quit)]
+            .into_iter()
+            .map(|(name, action)| (name.to_owned(), action))
+            .collect();
+        assert!(matches!(
+            Keymap::from_names(same),
+            Err(KeymapError::Duplicate { .. })
+        ));
     }
 
     #[test]

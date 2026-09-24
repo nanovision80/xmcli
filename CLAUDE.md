@@ -449,11 +449,12 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       degradação do palco (pixel → rampa, resolução), para a 6.9.*
 - [x] 4.6 `SIGWINCH` e reflow responsivo (RF-513)
       — *o aviso vem da feature `events` do `crossterm` (`SIGWINCH` no Unix, evento do console
-      no Windows). `resize::wait` é onde o laço de desenho espera o próximo quadro: acorda
-      cedo no redimensionamento, esvazia a rajada de avisos numa resposta só e devolve o
-      tamanho perguntado ao terminal, não o do aviso, que com fila já chega velho. O
-      `Painter::invalidate` força a repintura inteira mesmo quando o tamanho volta ao de
-      antes. Recolher painéis por prioridade é layout, e entra na 5.1.*
+      no Windows). `input::next` entrega um evento por vez; a rajada de avisos de um arrasto
+      é juntada pelo laço, que anota "mudou" e pergunta o tamanho ao terminal uma vez, no
+      quadro seguinte — o número do aviso, com fila, já chega velho. Juntar dentro de `input`
+      (a primeira versão) exigia esvaziar a fila, e engolia a tecla apertada no meio do
+      arrasto. O `Painter::invalidate` força a repintura inteira mesmo quando o tamanho volta
+      ao de antes. Recolher painéis por prioridade é layout, e entra na 5.1.*
 - [x] 4.7 Harness de snapshot de terminal para os testes de UI
       — *`tests/vt/`: os bytes do `Painter` passam pelo `vt100`, um emulador independente, e a
       foto é a tela dele, em texto revisável no diff — caracteres, mapa de cores e legenda.
@@ -484,6 +485,11 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
 - [ ] 5.6 Sliders de volume e de balanço/separação estéreo (RF-506)
 - [ ] 5.7 Barra de status com o equivalente tracker do rodapé do Winamp (RF-507)
 - [ ] 5.8 Teclas vindas de `keymap.json` → ações; overlay de ajuda
+      — *adiantado em parte para a 5.1, cujo laço precisa de saída: `config/keymap.json`
+      (validado no build, como o `defaults.json`), o leitor de teclas e a ação `quit` em `q` e
+      `ctrl+c` — em modo raw o `ctrl+c` chega como tecla, não como sinal. As demais ações
+      entram com as funções que as atendem; falta aqui o overlay de ajuda e o keymap do
+      usuário.*
 - [ ] 5.9 Playlist: `.m3u`, shuffle, repeat, painel com faixa atual (RF-508, RF-702)
 - [ ] 5.10 Modo **shade** de uma linha (RF-511)
 - [ ] 5.11 Temas de paleta (RF-517) e `--no-ui` (RF-518)
