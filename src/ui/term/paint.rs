@@ -88,6 +88,14 @@ impl Painter {
         }
     }
 
+    /// Muda a profundidade de cor dos próximos quadros (RF-621).
+    ///
+    /// Não precisa repintar nada à força: as células já mostradas guardam a cor na
+    /// profundidade antiga, e o diff do próximo quadro encontra nelas a diferença.
+    pub fn set_depth(&mut self, depth: ColorDepth) {
+        self.depth = depth;
+    }
+
     /// Escreve o quadro em `out` numa chamada só, e devolve quantos bytes ele custou.
     ///
     /// Um `write_all` e não uma série de escritas: o terminal que recebe meio quadro mostra

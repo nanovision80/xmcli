@@ -37,6 +37,23 @@ const SNAPSHOT_CAPACITY_MIN: u16 = 8;
 /// Maior fila de snapshots aceita. Além disso só se acumula estado velho, que ninguém mostra.
 const SNAPSHOT_CAPACITY_MAX: u16 = 4_096;
 
+/// Menor e maior taxa de quadros aceitas. O RF-601 pede de 30 a 60; a faixa aceita é mais
+/// larga para quem quer economizar CPU ou tem um monitor rápido, mas sem chegar a zero, que
+/// congelaria a imagem.
+const FPS_MIN: u16 = 1;
+const FPS_MAX: u16 = 240;
+
+/// Menor orçamento de banda aceito, por quadro e por segundo, em bytes. Abaixo disso nem o
+/// cromo de uma linha cabe.
+const BYTES_MIN: u64 = 1_024;
+
+/// Maior orçamento aceito por quadro, em bytes: um quadro truecolor de 400×120 células com cor
+/// diferente em cada uma.
+const FRAME_BYTES_MAX: u64 = 16 * 1_024 * 1_024;
+
+/// Maior percentual aceito; o menor é 1, porque zero anularia o que o percentual mede.
+const PERCENT_MAX: u8 = 100;
+
 /// Configuração resolvida do programa.
 ///
 /// Depois de montada ela é **congelada**: nenhum laço quente lê configuração
@@ -48,6 +65,7 @@ pub struct Settings {
     pub bus: Bus,
     pub io: Io,
     pub log: Log,
+    pub ui: Ui,
 }
 
 /// Saída de áudio (RF-401, RF-402).
@@ -92,6 +110,31 @@ pub struct Io {
 #[serde(deny_unknown_fields)]
 pub struct Log {
     pub level: LogLevel,
+}
+
+/// Ritmo e banda da interface (RF-601, RF-621, RF-622, RNF-07).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Ui {
+    /// Taxa de quadros que o pacing busca quando o terminal acompanha.
+    pub fps_max: u16,
+    /// Taxa abaixo da qual o quadro está caro demais e a cor desce um degrau.
+    pub fps_min: u16,
+    /// Teto de banda para o terminal, em bytes por segundo, mesmo que ele aguente mais.
+    pub max_bytes_per_second: u64,
+    /// Teto de bytes de um quadro só: o quadro maior que isso demora para chegar inteiro, e a
+    /// imagem atrasa em relação ao som.
+    pub max_frame_bytes: u64,
+    /// Peso, em %, de cada medida nova na média do throughput do terminal. Alto reage rápido
+    /// e oscila; baixo é estável e demora a notar que o link ficou lento.
+    pub throughput_smoothing_percent: u8,
+    /// Fração, em %, do throughput medido que a interface se permite usar. Usar tudo deixaria
+    /// o terminal sempre no limite, e qualquer oscilação do link viraria atraso.
+    pub throughput_headroom_percent: u8,
+    /// Quadros seguidos dentro do orçamento antes de a cor subir um degrau.
+    pub recover_frames: u32,
+    /// Teto da espera por subir: cada subida que não se sustenta dobra a espera até aqui.
+    pub recover_frames_max: u32,
 }
 
 /// Nível de detalhamento do log.
@@ -145,7 +188,61 @@ impl Settings {
             u64::from(SNAPSHOT_CAPACITY_MIN),
             u64::from(SNAPSHOT_CAPACITY_MAX),
         )?;
-        check_range("io.max_file_bytes", self.io.max_file_bytes, 1, u64::MAX)
+        check_range("io.max_file_bytes", self.io.max_file_bytes, 1, u64::MAX)?;
+        self.ui.validate()
+    }
+}
+
+impl Ui {
+    fn validate(&self) -> Result<(), OutOfRange> {
+        check_range(
+            "ui.fps_max",
+            u64::from(self.fps_max),
+            u64::from(FPS_MIN),
+            u64::from(FPS_MAX),
+        )?;
+        check_range(
+            "ui.fps_min",
+            u64::from(self.fps_min),
+            u64::from(FPS_MIN),
+            u64::from(self.fps_max),
+        )?;
+        check_range(
+            "ui.max_bytes_per_second",
+            self.max_bytes_per_second,
+            BYTES_MIN,
+            u64::MAX,
+        )?;
+        check_range(
+            "ui.max_frame_bytes",
+            self.max_frame_bytes,
+            BYTES_MIN,
+            FRAME_BYTES_MAX,
+        )?;
+        check_range(
+            "ui.throughput_smoothing_percent",
+            u64::from(self.throughput_smoothing_percent),
+            1,
+            u64::from(PERCENT_MAX),
+        )?;
+        check_range(
+            "ui.throughput_headroom_percent",
+            u64::from(self.throughput_headroom_percent),
+            1,
+            u64::from(PERCENT_MAX),
+        )?;
+        check_range(
+            "ui.recover_frames",
+            u64::from(self.recover_frames),
+            1,
+            u64::from(self.recover_frames_max),
+        )?;
+        check_range(
+            "ui.recover_frames_max",
+            u64::from(self.recover_frames_max),
+            1,
+            u64::from(u32::MAX),
+        )
     }
 }
 

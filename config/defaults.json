@@ -12,5 +12,15 @@
   },
   "log": {
     "level": "warn"
+  },
+  "ui": {
+    "fps_max": 60,
+    "fps_min": 30,
+    "max_bytes_per_second": 409600,
+    "max_frame_bytes": 16384,
+    "throughput_smoothing_percent": 20,
+    "throughput_headroom_percent": 90,
+    "recover_frames": 120,
+    "recover_frames_max": 1920
   }
 }

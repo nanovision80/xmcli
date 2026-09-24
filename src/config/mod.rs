@@ -9,7 +9,7 @@
 /// Forma e validação da configuração; compartilhado com `build.rs`.
 mod settings;
 
-pub use settings::{LogLevel, OutOfRange, Settings};
+pub use settings::{LogLevel, OutOfRange, Settings, Ui};
 
 use std::path::{Path, PathBuf};
 
@@ -248,6 +248,21 @@ mod tests {
             panic!("esperado OutOfRange");
         };
         assert_eq!(out_of_range.field, "audio.sample_rate");
+    }
+
+    #[test]
+    fn fps_minimo_acima_do_maximo_e_recusado() {
+        let error = resolve(
+            None,
+            env(&[]),
+            &json!({"ui": {"fps_max": 30, "fps_min": 60}}),
+        )
+        .expect_err("fps mínimo acima do máximo deve ser recusado");
+        let ConfigError::OutOfRange(out_of_range) = error else {
+            panic!("esperado OutOfRange");
+        };
+        assert_eq!(out_of_range.field, "ui.fps_min");
+        assert_eq!(out_of_range.max, 30);
     }
 
     #[test]

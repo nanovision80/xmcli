@@ -68,6 +68,10 @@ pub struct Args {
     #[arg(long, value_name = "MS")]
     pub latency_ms: Option<u16>,
 
+    /// Teto de bytes por quadro enviado ao terminal
+    #[arg(long, value_name = "BYTES")]
+    pub max_frame_bytes: Option<u64>,
+
     /// Desenha sem cor, qualquer que seja o terminal (o mesmo que NO_COLOR)
     #[arg(long)]
     pub mono: bool,
@@ -97,6 +101,9 @@ impl Args {
         let mut patch = json!({});
         if audio.as_object().is_some_and(|fields| !fields.is_empty()) {
             patch["audio"] = audio;
+        }
+        if let Some(max_frame_bytes) = self.max_frame_bytes {
+            patch["ui"] = json!({ "max_frame_bytes": max_frame_bytes });
         }
         if self.verbose > 0 {
             let level = if self.verbose == VERBOSE_DEBUG {
@@ -129,6 +136,14 @@ mod tests {
         assert_eq!(
             patch,
             json!({"audio": {"sample_rate": 48_000}, "log": {"level": "trace"}})
+        );
+    }
+
+    #[test]
+    fn teto_por_quadro_vai_para_a_secao_ui() {
+        assert_eq!(
+            parse(&["xmcli", "--max-frame-bytes", "8192"]).patch(),
+            json!({"ui": {"max_frame_bytes": 8_192}})
         );
     }
 

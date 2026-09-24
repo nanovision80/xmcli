@@ -16,10 +16,12 @@
 //! para cima, e o prompt do shell escreveria por cima da mensagem.
 //!
 //! Quantas cores a superfície aceita é decidido à parte, em [`color`]. O quadro é desenhado
-//! numa grade de células ([`buffer`]) e chega ao terminal por [`paint`].
+//! numa grade de células ([`buffer`]) e chega ao terminal por [`paint`], no ritmo que [`pace`]
+//! decide.
 
 pub mod buffer;
 pub mod color;
+pub mod pace;
 pub mod paint;
 
 use std::io::{self, Stdout, Write};

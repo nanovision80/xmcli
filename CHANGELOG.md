@@ -32,6 +32,11 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   sequência de cor só sai quando muda — inclusive de um quadro para o outro — e o quadro
   inteiro vai num `write` só (RF-515, RF-604, RF-621). A comparação é feita depois de converter
   a cor para o terminal, e caracteres de controle vindos de módulo não chegam a ele.
+- Ritmo de quadros adaptativo: o throughput do terminal é medido pelo tempo do `write`, e o
+  intervalo entre quadros respeita o menor entre ele e o teto de 400 KB/s, de 30 a 60 fps
+  (RF-601, RF-622, RNF-07). Quadro acima do orçamento desce a cor de truecolor para 256 e
+  para 16; quadros dentro dele a devolvem (RF-621). Nova seção `ui` na configuração e nova
+  opção `--max-frame-bytes`.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
 ### Corrigido

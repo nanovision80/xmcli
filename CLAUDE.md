@@ -437,7 +437,16 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       da última coluna e caractere de controle vira `U+FFFD` — texto de módulo é hostil. O
       orçamento `--max-frame-bytes` e a degradação em cascata do RF-621 entram com a medição
       de throughput da 4.5, que é quem sabe quanto cabe.*
-- [ ] 4.5 Medição do throughput real do TTY e pacing adaptativo (RF-601, RF-622)
+- [x] 4.5 Medição do throughput real do TTY e pacing adaptativo (RF-601, RF-622)
+      — *o `write` só espera quando o terminal não escoa, então bytes ÷ tempo do `write` é o
+      throughput real, e só aparece quando importa. O `Pacer` não tem relógio: recebe (bytes,
+      duração) de cada quadro e devolve o intervalo e a profundidade de cor. Médias móveis de
+      bytes e de duração separadas, porque a razão de um `write` absorvido vai ao infinito.
+      Banda permitida = mín(`ui.max_bytes_per_second`, fração do medido); quadro acima de
+      mín(`--max-frame-bytes`, banda ÷ fps mínimo) desce a cor um degrau (RF-621); quadros
+      calmos a devolvem, e subida que não se sustenta dobra a espera. Sem cor não é degrau.
+      A medição contra um TTY real fica para a etapa 5, quando houver laço que desenhe; a
+      degradação do palco (pixel → rampa, resolução), para a 6.9.*
 - [ ] 4.6 `SIGWINCH` e reflow responsivo (RF-513)
 - [ ] 4.7 Harness de snapshot de terminal para os testes de UI
 

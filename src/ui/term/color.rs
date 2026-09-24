@@ -34,8 +34,8 @@ const TERM_DIRECT_SUFFIX: &str = "-direct";
 /// Trecho de `TERM` das entradas com paleta de 256 cores, como `xterm-256color`.
 const TERM_256_MARKER: &str = "256color";
 
-/// Profundidade de cor que o palco e o cromo podem usar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Profundidade de cor que o palco e o cromo podem usar, da menor para a maior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColorDepth {
     /// Sem cor: só atributos de texto.
     Mono,
@@ -101,6 +101,27 @@ pub enum Ink {
 }
 
 impl ColorDepth {
+    /// Um degrau abaixo na cascata de degradação do RF-621: truecolor → 256 → 16.
+    ///
+    /// Sem cor não é degrau: tirar a cor muda o que a interface comunica — botão ativo, canal
+    /// mudo —, e isso só o usuário decide, com `--mono` ou `NO_COLOR`.
+    pub fn lower(self) -> Option<Self> {
+        match self {
+            Self::TrueColor => Some(Self::Ansi256),
+            Self::Ansi256 => Some(Self::Ansi16),
+            Self::Ansi16 | Self::Mono => None,
+        }
+    }
+
+    /// Um degrau acima na mesma cascata, o inverso de [`Self::lower`].
+    pub fn raise(self) -> Option<Self> {
+        match self {
+            Self::Ansi16 => Some(Self::Ansi256),
+            Self::Ansi256 => Some(Self::TrueColor),
+            Self::TrueColor | Self::Mono => None,
+        }
+    }
+
     /// A cor mais próxima de `color` que esta profundidade consegue mostrar.
     pub fn ink(self, color: Rgb) -> Ink {
         match self {
