@@ -160,6 +160,7 @@ mod tests {
 
     fn ui() -> Ui {
         Ui {
+            theme: String::new(),
             fps_max: 60,
             fps_min: 30,
             max_bytes_per_second: 300_000,

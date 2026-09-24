@@ -87,6 +87,11 @@ impl Session {
     pub fn out(&mut self) -> &mut Stdout {
         &mut self.out
     }
+
+    /// Largura e altura do terminal, em células.
+    pub fn size(&self) -> io::Result<(u16, u16)> {
+        crossterm::terminal::size()
+    }
 }
 
 impl Drop for Session {

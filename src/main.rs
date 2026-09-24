@@ -4,7 +4,7 @@
 
 mod cli;
 
-use std::io::{ErrorKind, Write};
+use std::io::{ErrorKind, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{CommandFactory, Parser};
@@ -15,7 +15,8 @@ use xmcli::formats::{self, FormatError};
 use xmcli::info::Report;
 use xmcli::io::{self, Input};
 use xmcli::player;
-use xmcli::ui::term::color;
+use xmcli::ui::term::color::{self, ColorDepth};
+use xmcli::ui::{self, Exit, Setup};
 
 use crate::cli::{Args, ExitCode};
 
@@ -45,7 +46,7 @@ fn run(args: &Args) -> anyhow::Result<ExitCode> {
     if args.info {
         return report_all(args, &settings);
     }
-    play_all(args, &settings)
+    play_all(args, &settings, colors)
 }
 
 // ---------------------------------------------------------------- metadados
@@ -92,7 +93,7 @@ fn report_all(args: &Args, settings: &Settings) -> anyhow::Result<ExitCode> {
 
 // ---------------------------------------------------------------- reprodução
 
-fn play_all(args: &Args, settings: &Settings) -> anyhow::Result<ExitCode> {
+fn play_all(args: &Args, settings: &Settings, colors: ColorDepth) -> anyhow::Result<ExitCode> {
     let inputs = io::expand(&args.inputs)?;
     if args.render.is_some() && inputs.len() > 1 {
         anyhow::bail!(
@@ -101,16 +102,36 @@ fn play_all(args: &Args, settings: &Settings) -> anyhow::Result<ExitCode> {
         );
     }
 
+    // A interface só sobe num terminal: com a saída num arquivo ou num cano, o player toca
+    // sem ela, como antes.
+    let theme = config::theme(settings);
+    let keymap = config::keymap();
+    let interactive = args.render.is_none() && !args.raw_stdout && std::io::stdout().is_terminal();
+    let setup = interactive.then_some(Setup {
+        settings,
+        theme: &theme,
+        keymap: &keymap,
+        colors,
+    });
+
     let mut worst = ExitCode::Success;
     for path in inputs {
-        if let Err(error) = play_one(&path, args, settings) {
-            worst = report_failure(&path, &error, worst);
+        match play_one(&path, args, settings, setup.as_ref()) {
+            // Sair é sair da lista inteira, não pular para a próxima faixa.
+            Ok(Exit::Quit) => break,
+            Ok(Exit::Ended) => {}
+            Err(error) => worst = report_failure(&path, &error, worst),
         }
     }
     Ok(worst)
 }
 
-fn play_one(path: &Path, args: &Args, settings: &Settings) -> anyhow::Result<()> {
+fn play_one(
+    path: &Path,
+    args: &Args,
+    settings: &Settings,
+    setup: Option<&Setup>,
+) -> anyhow::Result<Exit> {
     let input = load(path, settings)?;
     let song = formats::read(&input.bytes)?;
     let rate = settings.audio.sample_rate;
@@ -132,22 +153,32 @@ fn play_one(path: &Path, args: &Args, settings: &Settings) -> anyhow::Result<()>
         let mut engine = player::load(&input.bytes, rate)?;
         announce(engine.duration_seconds());
         if let Some(target) = &args.render {
-            return render_to_file(engine.as_mut(), rate, target);
+            render_to_file(engine.as_mut(), rate, target)?;
+            return Ok(Exit::Ended);
         }
         let mut out = std::io::stdout().lock();
         offline::render_raw(engine.as_mut(), rate, &mut out)?;
-        return Ok(());
+        return Ok(Exit::Ended);
     }
 
     // O motor nasce na linha de áudio, que é quem o usa: ele não atravessa linhas (Engine).
     let bytes = input.bytes;
-    let playback = device::start(
+    let mut playback = device::start(
         move || player::load(&bytes, rate),
         rate,
         settings.audio.latency_ms,
         args.device.clone(),
     )?;
     announce(playback.duration_seconds);
+    let exit = match setup {
+        Some(setup) => ui::run(&mut playback, setup),
+        None => Ok(Exit::Ended),
+    };
+    if exit.is_err() {
+        // A interface caiu: sem ela ninguém mais pediria para parar, e o erro só apareceria
+        // depois de a música tocar até o fim.
+        playback.stop();
+    }
     let played = playback.wait()?;
     if played.underrun_frames > 0 {
         // Estouro é sintoma, não detalhe: o usuário precisa saber para elevar a latência.
@@ -156,7 +187,7 @@ fn play_one(path: &Path, args: &Args, settings: &Settings) -> anyhow::Result<()>
             "o dispositivo ficou sem dados; eleve audio.latency_ms"
         );
     }
-    Ok(())
+    Ok(exit?)
 }
 
 fn render_to_file(

@@ -477,7 +477,16 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
 ### Etapa 5 — Cromo do player
 *Depende de: 3 e 4. Produz: o player utilizável. **Fecha a F1.***
 
-- [ ] 5.1 Layout responsivo com prioridade de painéis (RF-513)
+- [x] 5.1 Layout responsivo com prioridade de painéis (RF-513)
+      — *`ui/chrome/layout.rs` é função pura de tamanho para regiões, no desenho do RF-500:
+      cromo de altura fixa e o palco com o que sobra (RF-501). Abaixo de 80×24, aviso do
+      mínimo, até o modo shade da 5.10 ocupar esse lugar. Moldura em ASCII de 7 bits, cores
+      de `config/palettes.json` (tema `classic`, escolhido em `ui.theme`). O laço
+      (`ui::run`) desenha no ritmo do `Pacer`, junta os avisos de tamanho e sai no `quit` ou
+      no fim da música; só sobe com a saída num terminal. Vieram antes, em commits próprios, a
+      reprodução numa linha controlável (com a fila de comandos da 2.6) e o keymap da 5.8.
+      "Prioridade de painéis" ainda não tem o que priorizar: os painéis laterais chegam com a
+      playlist (5.9) e o mixer (9.3).*
 - [ ] 5.2 Marquee do título com rolagem contínua (RF-502)
 - [ ] 5.3 Transporte com estado visual do botão ativo (RF-503)
 - [ ] 5.4 Barra de seek ligada ao *fast-forward* silencioso (RF-504, RF-207)

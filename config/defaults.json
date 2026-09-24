@@ -14,6 +14,7 @@
     "level": "warn"
   },
   "ui": {
+    "theme": "classic",
     "fps_max": 60,
     "fps_min": 30,
     "max_bytes_per_second": 409600,

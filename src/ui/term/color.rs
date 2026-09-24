@@ -88,6 +88,16 @@ impl Rgb {
     pub const BLACK: Self = Self { r: 0, g: 0, b: 0 };
 }
 
+impl From<crate::config::Color> for Rgb {
+    fn from(color: crate::config::Color) -> Self {
+        Self {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+        }
+    }
+}
+
 /// Uma cor já na forma que o terminal aceita.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ink {

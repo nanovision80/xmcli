@@ -116,6 +116,8 @@ pub struct Log {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ui {
+    /// Nome do tema de cores, uma das entradas de `config/palettes.json` (RF-517).
+    pub theme: String,
     /// Taxa de quadros que o pacing busca quando o terminal acompanha.
     pub fps_max: u16,
     /// Taxa abaixo da qual o quadro está caro demais e a cor desce um degrau.

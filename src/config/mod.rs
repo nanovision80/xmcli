@@ -12,7 +12,11 @@ mod settings;
 /// Teclas ligadas a ações (etapa 5.8); compartilhado com `build.rs`.
 mod keymap;
 
+/// Temas de cor (RF-517); compartilhado com `build.rs`.
+mod palette;
+
 pub use keymap::{Action, Key, KeyCode, Keymap, KeymapError, parse_key};
+pub use palette::{Color, Theme};
 
 pub use settings::{LogLevel, OutOfRange, Settings, Ui};
 
@@ -26,6 +30,9 @@ const DEFAULTS_JSON: &str = include_str!("../../config/defaults.json");
 
 /// Teclas padrão. Validadas em tempo de compilação por `build.rs`.
 const KEYMAP_JSON: &str = include_str!("../../config/keymap.json");
+
+/// Temas de cor. Validados em tempo de compilação por `build.rs`.
+const PALETTES_JSON: &str = include_str!("../../config/palettes.json");
 
 /// Nome da aplicação, usado para localizar o diretório de configuração do usuário.
 const APP_NAME: &str = "xmcli";
@@ -63,6 +70,9 @@ pub enum ConfigError {
 
     #[error(transparent)]
     OutOfRange(#[from] OutOfRange),
+
+    #[error("tema \"{0}\" não existe em config/palettes.json")]
+    UnknownTheme(String),
 }
 
 /// Lê o arquivo de configuração do usuário, se houver.
@@ -109,7 +119,22 @@ pub fn resolve(
 
     let settings: Settings = serde_json::from_value(merged).map_err(ConfigError::Shape)?;
     settings.validate()?;
+    if !palettes().contains_key(&settings.ui.theme) {
+        return Err(ConfigError::UnknownTheme(settings.ui.theme));
+    }
     Ok(settings)
+}
+
+/// O tema que a configuração escolheu.
+pub fn theme(settings: &Settings) -> Theme {
+    palettes()
+        .remove(&settings.ui.theme)
+        .expect("resolve recusa tema que não existe em config/palettes.json")
+}
+
+fn palettes() -> palette::Palettes {
+    serde_json::from_str(PALETTES_JSON)
+        .expect("config/palettes.json é validado em tempo de compilação por build.rs")
 }
 
 /// As teclas padrão, resolvidas para consulta.
@@ -331,6 +356,22 @@ mod tests {
             Keymap::from_names(same),
             Err(KeymapError::Duplicate { .. })
         ));
+    }
+
+    #[test]
+    fn tema_inexistente_e_recusado() {
+        let error = resolve(None, env(&[]), &json!({"ui": {"theme": "vaporwave"}}))
+            .expect_err("tema que não existe deve ser recusado");
+        assert!(
+            matches!(&error, ConfigError::UnknownTheme(name) if name == "vaporwave"),
+            "obtido: {error}"
+        );
+    }
+
+    #[test]
+    fn o_tema_padrao_existe() {
+        let settings = resolved(None, &[], json!({}));
+        assert_eq!(theme(&settings), palettes()["classic"]);
     }
 
     #[test]

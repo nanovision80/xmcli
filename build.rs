@@ -6,6 +6,10 @@
 
 include!("src/config/settings.rs");
 
+mod palette {
+    include!("src/config/palette.rs");
+}
+
 // O build só valida o arquivo; consultar teclas é trabalho do programa.
 #[allow(dead_code)]
 mod keymap {
@@ -17,6 +21,9 @@ const DEFAULTS_PATH: &str = "config/defaults.json";
 
 /// Teclas padrão (etapa 5.8).
 const KEYMAP_PATH: &str = "config/keymap.json";
+
+/// Temas de cor (RF-517).
+const PALETTES_PATH: &str = "config/palettes.json";
 
 fn main() {
     println!("cargo::rerun-if-changed={DEFAULTS_PATH}");
@@ -40,5 +47,18 @@ fn main() {
         .unwrap_or_else(|error| panic!("{KEYMAP_PATH} não é um mapa de tecla para ação: {error}"));
     if let Err(error) = keymap::Keymap::from_names(names) {
         panic!("{KEYMAP_PATH} tem atalho inválido: {error}");
+    }
+
+    println!("cargo::rerun-if-changed={PALETTES_PATH}");
+    println!("cargo::rerun-if-changed=src/config/palette.rs");
+    let raw = std::fs::read_to_string(PALETTES_PATH)
+        .unwrap_or_else(|error| panic!("não foi possível ler {PALETTES_PATH}: {error}"));
+    let palettes: palette::Palettes = serde_json::from_str(&raw)
+        .unwrap_or_else(|error| panic!("{PALETTES_PATH} não corresponde aos temas: {error}"));
+    if !palettes.contains_key(&settings.ui.theme) {
+        panic!(
+            "{DEFAULTS_PATH} escolhe o tema \"{}\", que não existe em {PALETTES_PATH}",
+            settings.ui.theme
+        );
     }
 }

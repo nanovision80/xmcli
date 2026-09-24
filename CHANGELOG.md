@@ -40,6 +40,12 @@ com o erro de sincronismo medido antes de existir a primeira tela.
 - Detecção de mudança de tamanho do terminal, pelo `SIGWINCH` no Unix e pelos eventos do
   console no Windows: a rajada de avisos de um arrasto de janela vira uma resposta só, com o
   tamanho real, e a tela seguinte é repintada inteira (RF-513).
+- Primeira interface: com a saída num terminal, o player abre em tela alternativa com a
+  moldura do layout estilo Winamp — cabeçalho, palco com toda a altura livre, transporte,
+  seek e status — e sai com `q` ou `ctrl+c` (RF-501, RF-513). Abaixo de 80×24 mostra o
+  tamanho mínimo. Fora de um terminal, toca como antes.
+- `config/keymap.json` (teclas → ações) e `config/palettes.json` (temas de cor), validados
+  na compilação como o `defaults.json`; o tema vem de `ui.theme`.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
 ### Corrigido
