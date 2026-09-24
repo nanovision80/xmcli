@@ -6,15 +6,17 @@
 //! e é o que permitirá trocar o motor na etapa 8 sem tocar no caminho de tempo real.
 
 use std::sync::Arc;
+use std::sync::mpsc::{self, SyncSender};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Producer, Split};
+use ringbuf::{HeapCons, HeapProd, HeapRb};
 use thiserror::Error;
 
 use crate::audio::clock::Clock;
-use crate::player::{CHANNELS, Engine};
+use crate::player::{CHANNELS, Engine, EngineError};
 
 /// Quantas vezes a latência alvo cabe no anel.
 ///
@@ -47,6 +49,15 @@ pub enum DeviceError {
 
     #[error("não foi possível iniciar a reprodução")]
     Start(#[source] cpal::Error),
+
+    #[error(transparent)]
+    Engine(EngineError),
+
+    #[error("não foi possível criar a linha de áudio")]
+    Thread(#[source] std::io::Error),
+
+    #[error("a linha de áudio terminou em pânico")]
+    Panicked,
 }
 
 /// Como a reprodução terminou.
@@ -56,89 +67,229 @@ pub struct Played {
     pub underrun_frames: u64,
 }
 
-/// Toca a música inteira no dispositivo e só volta quando o último quadro saiu.
-pub fn play(
-    mut engine: Box<dyn Engine>,
-    sample_rate: u32,
-    latency_ms: u16,
-    wanted: Option<&str>,
-) -> Result<Played, DeviceError> {
-    let device = pick(wanted)?;
-    let config = cpal::StreamConfig {
-        channels: CHANNELS as u16,
-        sample_rate,
-        buffer_size: cpal::BufferSize::Default,
-    };
-
-    let latency_frames = sample_rate as usize * usize::from(latency_ms) / 1_000;
-    let capacity = latency_frames * RING_LATENCY_MULTIPLE as usize * CHANNELS;
-    let (mut producer, mut consumer) =
-        HeapRb::<f32>::new(capacity.max(BLOCK_FRAMES * CHANNELS)).split();
-
-    let clock = Clock::new(sample_rate);
-    let callback_clock = Arc::clone(&clock);
-
-    let stream = device
-        .build_output_stream(
-            config,
-            move |out: &mut [f32], _| {
-                // Único trabalho do callback: copiar. Sem alocação, sem lock, sem I/O.
-                let taken = consumer.pop_slice(out);
-                if taken < out.len() {
-                    // Silêncio em vez de lixo: um estouro deve soar como um buraco, não como
-                    // um estalo. A contagem sobe para o programa poder relatar (RF-402).
-                    out[taken..].fill(0.0);
-
-                    // Depois do fim da música o anel esvazia por definição, e o último bloco
-                    // é parcial porque o total renderizado não é múltiplo do buffer do
-                    // dispositivo. Contar isso como estouro faria o programa pedir mais
-                    // latência para um problema que não existe. Ler o sinalizador aqui é
-                    // barato e não fere o invariante 1: é um átomo, sem lock e sem alocação.
-                    if !callback_clock.is_finished() {
-                        callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
-                    }
-                }
-                callback_clock.deliver((out.len() / CHANNELS) as u64);
-            },
-            |error| tracing::warn!(%error, "erro no fluxo de áudio"),
-            None,
-        )
-        .map_err(DeviceError::Build)?;
-
-    stream.play().map_err(DeviceError::Start)?;
-
-    let mut block = vec![0.0_f32; BLOCK_FRAMES * CHANNELS];
-    let mut rendered_frames = 0_u64;
-    loop {
-        let frames = engine.render(&mut block);
-        if frames == 0 {
-            clock.mark_finished();
-            break;
-        }
-        rendered_frames += frames as u64;
-        push_all(&mut producer, &block[..frames * CHANNELS]);
-    }
-
-    // Espera o dispositivo consumir o que ainda está no anel antes de encerrar o fluxo.
-    while clock.frames_played() < rendered_frames {
-        std::thread::sleep(FEEDER_IDLE);
-    }
-    drop(stream);
-
-    Ok(Played {
-        frames: rendered_frames,
-        underrun_frames: clock.underruns(),
-    })
+/// Pedido da interface à linha de áudio (etapa 2.6).
+///
+/// Os comandos entram com quem os envia: parar agora; pausa, seek e volume com o transporte,
+/// a barra de seek e os sliders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Command {
+    /// Parar agora, sem esperar o anel esvaziar.
+    Stop,
 }
 
-/// Empurra o bloco inteiro para o anel, cedendo a vez enquanto ele estiver cheio.
-fn push_all(producer: &mut impl Producer<Item = f32>, mut samples: &[f32]) {
-    while !samples.is_empty() {
-        let pushed = producer.push_slice(samples);
-        samples = &samples[pushed..];
-        if pushed == 0 {
+/// Comandos que cabem na fila antes de o remetente desistir de enfileirar.
+///
+/// A fila é esvaziada a cada bloco do motor — uns 23 ms a 44,1 kHz —, e ninguém aperta tecla
+/// tão rápido. Cheia, ela só pode estar cheia de pedidos que ainda vão ser atendidos.
+const COMMAND_CAPACITY: usize = 16;
+
+/// Nome da linha alimentadora, para quem a vir num depurador.
+const FEEDER_THREAD_NAME: &str = "xmcli-audio";
+
+/// Milissegundos em um segundo, para converter a latência em quadros.
+const MS_PER_SECOND: usize = 1_000;
+
+/// Uma reprodução em andamento, numa linha de execução própria.
+pub struct Playback {
+    /// O relógio do dispositivo: o que já soou e o que está soando (RF-406, RF-620).
+    pub clock: Arc<Clock>,
+    /// Duração estimada da música, em segundos.
+    pub duration_seconds: f64,
+    commands: HeapProd<Command>,
+    thread: JoinHandle<Result<Played, DeviceError>>,
+}
+
+impl Playback {
+    /// Pede para parar. A reprodução termina no próximo bloco do motor.
+    pub fn stop(&mut self) {
+        // Fila cheia é fila com pedidos por atender; um Stop a mais não mudaria nada.
+        let _ = self.commands.try_push(Command::Stop);
+    }
+
+    /// Se a reprodução já acabou — a música chegou ao fim ou alguém a parou.
+    pub fn is_finished(&self) -> bool {
+        self.thread.is_finished()
+    }
+
+    /// Espera a reprodução terminar.
+    pub fn wait(self) -> Result<Played, DeviceError> {
+        self.thread.join().map_err(|_| DeviceError::Panicked)?
+    }
+}
+
+/// Começa a tocar numa linha de execução própria e volta assim que o som começou.
+///
+/// O motor é construído lá dentro, por `load`: ele não é `Send` (ver [`Engine`]), e o fluxo do
+/// dispositivo também não é em todas as plataformas. Falha ao carregar ou ao abrir o
+/// dispositivo volta daqui, antes de haver reprodução.
+pub fn start(
+    load: impl FnOnce() -> Result<Box<dyn Engine>, EngineError> + Send + 'static,
+    sample_rate: u32,
+    latency_ms: u16,
+    wanted: Option<String>,
+) -> Result<Playback, DeviceError> {
+    let clock = Clock::new(sample_rate);
+    let (commands, pending) = HeapRb::<Command>::new(COMMAND_CAPACITY).split();
+    let (ready, started) = mpsc::sync_channel(1);
+
+    let feeder = Feeder {
+        clock: Arc::clone(&clock),
+        commands: pending,
+        sample_rate,
+        latency_ms,
+    };
+    let thread = std::thread::Builder::new()
+        .name(FEEDER_THREAD_NAME.to_owned())
+        .spawn(move || feeder.run(load, wanted.as_deref(), &ready))
+        .map_err(DeviceError::Thread)?;
+
+    match started.recv() {
+        Ok(Ok(duration_seconds)) => Ok(Playback {
+            clock,
+            duration_seconds,
+            commands,
+            thread,
+        }),
+        Ok(Err(error)) => Err(error),
+        // A linha morreu antes de avisar: só um pânico faz isso.
+        Err(_) => Err(DeviceError::Panicked),
+    }
+}
+
+/// A linha que renderiza o motor e alimenta o anel do dispositivo.
+struct Feeder {
+    clock: Arc<Clock>,
+    commands: HeapCons<Command>,
+    sample_rate: u32,
+    latency_ms: u16,
+}
+
+impl Feeder {
+    fn run(
+        mut self,
+        load: impl FnOnce() -> Result<Box<dyn Engine>, EngineError>,
+        wanted: Option<&str>,
+        ready: &SyncSender<Result<f64, DeviceError>>,
+    ) -> Result<Played, DeviceError> {
+        let opened = load().map_err(DeviceError::Engine).and_then(|mut engine| {
+            let (stream, producer) = self.open(wanted)?;
+            Ok((engine.duration_seconds(), engine, stream, producer))
+        });
+        let (duration, mut engine, stream, mut producer) = match opened {
+            Ok(opened) => opened,
+            Err(error) => {
+                // Quem espera pelo aviso é `start`, e ele devolve o erro a quem chamou.
+                let _ = ready.send(Err(error));
+                return Ok(Played {
+                    frames: 0,
+                    underrun_frames: 0,
+                });
+            }
+        };
+        let _ = ready.send(Ok(duration));
+
+        let mut block = vec![0.0_f32; BLOCK_FRAMES * CHANNELS];
+        let mut rendered_frames = 0_u64;
+        let mut stopped = false;
+        while !stopped {
+            let frames = engine.render(&mut block);
+            if frames == 0 {
+                break;
+            }
+            rendered_frames += frames as u64;
+            stopped = !self.push_all(&mut producer, &block[..frames * CHANNELS]);
+        }
+        self.clock.mark_finished();
+
+        // Espera o dispositivo consumir o que ainda está no anel antes de encerrar o fluxo —
+        // a não ser que tenham pedido para parar, e aí o resto do anel não interessa.
+        while !stopped && self.clock.frames_played() < rendered_frames {
+            stopped = self.stop_requested();
             std::thread::sleep(FEEDER_IDLE);
         }
+        drop(stream);
+
+        Ok(Played {
+            frames: rendered_frames,
+            underrun_frames: self.clock.underruns(),
+        })
+    }
+
+    /// Abre o fluxo do dispositivo, já tocando, e devolve o lado que o alimenta.
+    fn open(&self, wanted: Option<&str>) -> Result<(cpal::Stream, HeapProd<f32>), DeviceError> {
+        let device = pick(wanted)?;
+        let config = cpal::StreamConfig {
+            channels: CHANNELS as u16,
+            sample_rate: self.sample_rate,
+            buffer_size: cpal::BufferSize::Default,
+        };
+
+        let latency_frames =
+            self.sample_rate as usize * usize::from(self.latency_ms) / MS_PER_SECOND;
+        let capacity = latency_frames * RING_LATENCY_MULTIPLE as usize * CHANNELS;
+        let (producer, mut consumer) =
+            HeapRb::<f32>::new(capacity.max(BLOCK_FRAMES * CHANNELS)).split();
+
+        let callback_clock = Arc::clone(&self.clock);
+        let stream = device
+            .build_output_stream(
+                config,
+                move |out: &mut [f32], _| {
+                    // Único trabalho do callback: copiar. Sem alocação, sem lock, sem I/O.
+                    let taken = consumer.pop_slice(out);
+                    if taken < out.len() {
+                        // Silêncio em vez de lixo: um estouro deve soar como um buraco, não
+                        // como um estalo. A contagem sobe para o programa poder relatar
+                        // (RF-402).
+                        out[taken..].fill(0.0);
+
+                        // Depois do fim da música o anel esvazia por definição, e o último
+                        // bloco é parcial porque o total renderizado não é múltiplo do buffer
+                        // do dispositivo. Contar isso como estouro faria o programa pedir mais
+                        // latência para um problema que não existe. Ler o sinalizador aqui é
+                        // barato e não fere o invariante 1: é um átomo, sem lock e sem
+                        // alocação.
+                        if !callback_clock.is_finished() {
+                            callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
+                        }
+                    }
+                    callback_clock.deliver((out.len() / CHANNELS) as u64);
+                },
+                |error| tracing::warn!(%error, "erro no fluxo de áudio"),
+                None,
+            )
+            .map_err(DeviceError::Build)?;
+
+        stream.play().map_err(DeviceError::Start)?;
+        Ok((stream, producer))
+    }
+
+    /// Empurra o bloco inteiro para o anel, esperando enquanto ele estiver cheio.
+    ///
+    /// Devolve `false` se pediram para parar no meio da espera.
+    fn push_all(&mut self, producer: &mut impl Producer<Item = f32>, mut samples: &[f32]) -> bool {
+        while !samples.is_empty() {
+            if self.stop_requested() {
+                return false;
+            }
+            let pushed = producer.push_slice(samples);
+            samples = &samples[pushed..];
+            if pushed == 0 {
+                std::thread::sleep(FEEDER_IDLE);
+            }
+        }
+        true
+    }
+
+    /// Esvazia a fila de comandos e diz se algum deles pediu para parar.
+    fn stop_requested(&mut self) -> bool {
+        let mut stop = false;
+        while let Some(command) = self.commands.try_pop() {
+            match command {
+                Command::Stop => stop = true,
+            }
+        }
+        stop
     }
 }
 

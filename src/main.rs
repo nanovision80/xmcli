@@ -114,35 +114,41 @@ fn play_one(path: &Path, args: &Args, settings: &Settings) -> anyhow::Result<()>
     let input = load(path, settings)?;
     let song = formats::read(&input.bytes)?;
     let rate = settings.audio.sample_rate;
-    let mut engine = player::load(&input.bytes, rate)?;
-
     let title = if song.title.is_empty() {
         input.name.clone()
     } else {
         song.title.clone()
     };
-    eprintln!(
-        "xmcli: {title} [{} {}ch] {}",
-        song.dialect.extension(),
-        song.channels,
-        format_duration(engine.duration_seconds()),
-    );
+    let announce = |seconds: f64| {
+        eprintln!(
+            "xmcli: {title} [{} {}ch] {}",
+            song.dialect.extension(),
+            song.channels,
+            format_duration(seconds),
+        );
+    };
 
-    if let Some(target) = &args.render {
-        return render_to_file(engine.as_mut(), rate, target);
-    }
-    if args.raw_stdout {
+    if args.render.is_some() || args.raw_stdout {
+        let mut engine = player::load(&input.bytes, rate)?;
+        announce(engine.duration_seconds());
+        if let Some(target) = &args.render {
+            return render_to_file(engine.as_mut(), rate, target);
+        }
         let mut out = std::io::stdout().lock();
         offline::render_raw(engine.as_mut(), rate, &mut out)?;
         return Ok(());
     }
 
-    let played = device::play(
-        engine,
+    // O motor nasce na linha de áudio, que é quem o usa: ele não atravessa linhas (Engine).
+    let bytes = input.bytes;
+    let playback = device::start(
+        move || player::load(&bytes, rate),
         rate,
         settings.audio.latency_ms,
-        args.device.as_deref(),
+        args.device.clone(),
     )?;
+    announce(playback.duration_seconds);
+    let played = playback.wait()?;
     if played.underrun_frames > 0 {
         // Estouro é sintoma, não detalhe: o usuário precisa saber para elevar a latência.
         tracing::warn!(
