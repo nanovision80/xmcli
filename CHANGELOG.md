@@ -5,8 +5,12 @@ o projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
-Fecha a etapa 3 do roteiro: o barramento de visualização que toda a interface vai consumir,
-com o erro de sincronismo medido antes de existir a primeira tela.
+## [0.2.0] — 2026-09-24
+
+Primeira versão com interface. Fecha as etapas 3 e 4 do roteiro — o barramento de
+visualização, com o erro de sincronismo medido antes de existir a primeira tela, e a camada de
+terminal — e abre a etapa 5 com o layout estilo Winamp, o marquee do título e o transporte
+(5.1 a 5.3). A fase F1 fecha com o restante da etapa 5.
 
 ### Adicionado
 
@@ -119,5 +123,6 @@ reproduz corretamente pelo motor externo, ainda sem interface.
 - O descompressor `PP20` foi verificado apenas contra fluxos construídos a partir da descrição
   do formato, ainda não contra um arquivo real.
 
-[Não lançado]: https://github.com/nanovision80/xmcli/compare/v0.1.0...HEAD
+[Não lançado]: https://github.com/nanovision80/xmcli/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nanovision80/xmcli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/nanovision80/xmcli/releases/tag/v0.1.0
