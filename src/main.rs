@@ -15,6 +15,7 @@ use xmcli::formats::{self, FormatError};
 use xmcli::info::Report;
 use xmcli::io::{self, Input};
 use xmcli::player;
+use xmcli::ui::term::color;
 
 use crate::cli::{Args, ExitCode};
 
@@ -34,6 +35,8 @@ fn run(args: &Args) -> anyhow::Result<ExitCode> {
     let settings = config::resolve(user.as_ref(), std::env::vars(), &args.patch())?;
     init_tracing(&settings);
     tracing::debug!(?settings, "configuração resolvida");
+    let colors = color::detect(|name| std::env::var_os(name), args.mono);
+    tracing::debug!(?colors, "profundidade de cor detectada");
 
     if args.inputs.is_empty() {
         eprint!("{}", Args::command().render_help());

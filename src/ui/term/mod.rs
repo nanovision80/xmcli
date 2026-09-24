@@ -14,6 +14,10 @@
 //! Agir uma vez não é detalhe: a sequência que sai da tela alternativa também devolve o cursor à
 //! posição salva na entrada. Repetida depois do hook de pânico, ela levaria o cursor de volta
 //! para cima, e o prompt do shell escreveria por cima da mensagem.
+//!
+//! Quantas cores a superfície aceita é decidido à parte, em [`color`].
+
+pub mod color;
 
 use std::io::{self, Stdout, Write};
 use std::panic;

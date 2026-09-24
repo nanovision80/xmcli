@@ -68,6 +68,10 @@ pub struct Args {
     #[arg(long, value_name = "MS")]
     pub latency_ms: Option<u16>,
 
+    /// Desenha sem cor, qualquer que seja o terminal (o mesmo que NO_COLOR)
+    #[arg(long)]
+    pub mono: bool,
+
     /// Detalha o log em stderr (-v para debug, -vv para trace)
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,

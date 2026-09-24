@@ -424,7 +424,11 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       terminaria sem tratamento, para o shell ver "morto por SIGTERM". `tests/terminal.rs` roda
       um processo filho num pseudo-terminal e confere modo canônico, eco e bytes nos cinco
       jeitos de sair. O caminho com `abort` foi conferido à mão num binário de release.*
-- [ ] 4.3 Detecção de capacidade de cor 16/256/truecolor; `NO_COLOR`; `--mono` (RF-514)
+- [x] 4.3 Detecção de capacidade de cor 16/256/truecolor; `NO_COLOR`; `--mono` (RF-514)
+      — *função pura sobre o ambiente: `--mono`, `NO_COLOR` não vazio e `TERM=dumb` dão mono;
+      `COLORTERM=truecolor|24bit`, `TERM=*-direct` e `WT_SESSION` (Windows Terminal, onde não
+      há `TERM`) dão truecolor; `TERM=*256color*` dá 256; o resto, 16. Na dúvida, desce. Até a
+      etapa 5 o único consumidor é o log de `-v`.*
 - [ ] 4.4 Buffer de células e escrita com **coalescência de SGR**, um `write` por quadro
       (RF-515, RF-621)
 - [ ] 4.5 Medição do throughput real do TTY e pacing adaptativo (RF-601, RF-622)

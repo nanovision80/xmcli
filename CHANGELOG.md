@@ -25,6 +25,9 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   terminal restaurado na saída normal, em pânico — inclusive com `panic = "abort"` — e em
   `SIGINT`, `SIGTERM` e `SIGHUP` (RF-516, RNF-10). Ainda sem uso pelo player, que segue sem
   interface.
+- Detecção da profundidade de cor do terminal — sem cor, 16, 256 ou truecolor — por `TERM`,
+  `COLORTERM` e, no Windows Terminal, `WT_SESSION`, com `--mono` e `NO_COLOR` desligando a
+  cor (RF-514). Por enquanto só aparece no log com `-v`.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
 ### Corrigido
