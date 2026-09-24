@@ -15,7 +15,7 @@ anyhow = "1.0.104"
 bzip2-rs = "0.1.2"
 clap = { version = "4.6.6", features = ["derive"] }
 cpal = "0.18.2"
-crossterm = { version = "0.29.0", default-features = false, features = ["windows"] }
+crossterm = { version = "0.29.0", default-features = false, features = ["events", "windows"] }
 directories = "6.0.0"
 flate2 = "1.1.10"
 lzma-rs = "0.3.0"
@@ -28,7 +28,8 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
 zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
 
-# Sinais de término (RF-516). A mesma versão que o crossterm puxa com a feature `events`.
+# Sinais de término (RF-516). A mesma versão que o crossterm puxa com a feature `events`, que
+# a detecção de redimensionamento liga (RF-513).
 [target."cfg(unix)".dependencies]
 signal-hook = "0.3.17"
 

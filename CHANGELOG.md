@@ -37,6 +37,9 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   (RF-601, RF-622, RNF-07). Quadro acima do orçamento desce a cor de truecolor para 256 e
   para 16; quadros dentro dele a devolvem (RF-621). Nova seção `ui` na configuração e nova
   opção `--max-frame-bytes`.
+- Detecção de mudança de tamanho do terminal, pelo `SIGWINCH` no Unix e pelos eventos do
+  console no Windows: a rajada de avisos de um arrasto de janela vira uma resposta só, com o
+  tamanho real, e a tela seguinte é repintada inteira (RF-513).
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
 ### Corrigido

@@ -447,7 +447,13 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       calmos a devolvem, e subida que não se sustenta dobra a espera. Sem cor não é degrau.
       A medição contra um TTY real fica para a etapa 5, quando houver laço que desenhe; a
       degradação do palco (pixel → rampa, resolução), para a 6.9.*
-- [ ] 4.6 `SIGWINCH` e reflow responsivo (RF-513)
+- [x] 4.6 `SIGWINCH` e reflow responsivo (RF-513)
+      — *o aviso vem da feature `events` do `crossterm` (`SIGWINCH` no Unix, evento do console
+      no Windows). `resize::wait` é onde o laço de desenho espera o próximo quadro: acorda
+      cedo no redimensionamento, esvazia a rajada de avisos numa resposta só e devolve o
+      tamanho perguntado ao terminal, não o do aviso, que com fila já chega velho. O
+      `Painter::invalidate` força a repintura inteira mesmo quando o tamanho volta ao de
+      antes. Recolher painéis por prioridade é layout, e entra na 5.1.*
 - [ ] 4.7 Harness de snapshot de terminal para os testes de UI
 
 > **Marco:** um quadro cheio cabe no orçamento de bytes (RNF-07) e o terminal volta ao normal

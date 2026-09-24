@@ -96,6 +96,14 @@ impl Painter {
         self.depth = depth;
     }
 
+    /// Esquece o que está na tela: o próximo quadro repinta todas as células.
+    ///
+    /// Para depois de um redimensionamento, mesmo que o tamanho tenha voltado ao de antes: o
+    /// emulador pode ter rearrumado ou apagado o conteúdo no caminho.
+    pub fn invalidate(&mut self) {
+        self.shown.clear();
+    }
+
     /// Escreve o quadro em `out` numa chamada só, e devolve quantos bytes ele custou.
     ///
     /// Um `write_all` e não uma série de escritas: o terminal que recebe meio quadro mostra
@@ -369,6 +377,18 @@ mod tests {
         assert_eq!(
             encode(&mut painter, &line("abc")),
             "\x1b[1;1H\x1b[38;2;255;0;0;48;2;0;0;255mabc"
+        );
+    }
+
+    #[test]
+    fn invalidar_repinta_tudo_no_mesmo_tamanho() {
+        let mut painter = Painter::new(ColorDepth::TrueColor);
+        let frame = line("ab");
+        painter.encode(&frame);
+        painter.invalidate();
+        assert_eq!(
+            encode(&mut painter, &frame),
+            "[1;1H[38;2;255;0;0;48;2;0;0;255mab"
         );
     }
 
