@@ -407,12 +407,17 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
 *Depende de: 0 (pode correr em paralelo com 2–3). Produz: superfície de desenho confiável.*
 
 - [x] 4.1 `src/ui/term/`: modo raw, alternate screen, cursor oculto
-      — *duas guardas, porque são dois estados: o modo raw é do dispositivo de terminal e não
-      escreve nada; tela e cursor são bytes na saída, e por isso os testes os conferem num
-      `Vec<u8>`, inclusive através de um pânico. O modo raw não tem teste automatizado — o CI
-      não tem TTY; foi conferido com `stty -a` num pseudo-terminal (`script`). Sem consumidor
-      até a etapa 5, como a primitiva da 3.1.*
-- [ ] 4.2 **Restauração garantida** em saída normal, `SIGINT/SIGTERM/SIGHUP` e panic (RF-516)
+      — *uma `Session` por processo, porque modo raw, tela e cursor são estado do terminal, não
+      do objeto. Sem consumidor até a etapa 5, como a primitiva da 3.1.*
+- [x] 4.2 **Restauração garantida** em saída normal, `SIGINT/SIGTERM/SIGHUP` e panic (RF-516)
+      — *uma função de restauração que age **uma vez**, alcançada pelo `Drop`, pelo hook de
+      pânico e por uma linha de sinais (`signal-hook`, só no Unix). Uma vez, porque sair da
+      tela alternativa também devolve o cursor à posição salva: repetido depois do hook, o
+      prompt escreveria por cima da mensagem. O hook restaura **antes** de a mensagem sair, e é
+      o único caminho com o `panic = "abort"` do release. O sinal termina o processo como
+      terminaria sem tratamento, para o shell ver "morto por SIGTERM". `tests/terminal.rs` roda
+      um processo filho num pseudo-terminal e confere modo canônico, eco e bytes nos cinco
+      jeitos de sair. O caminho com `abort` foi conferido à mão num binário de release.*
 - [ ] 4.3 Detecção de capacidade de cor 16/256/truecolor; `NO_COLOR`; `--mono` (RF-514)
 - [ ] 4.4 Buffer de células e escrita com **coalescência de SGR**, um `write` por quadro
       (RF-515, RF-621)

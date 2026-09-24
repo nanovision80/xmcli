@@ -21,8 +21,9 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   e a posição audível interpola entre uma entrega e a seguinte (RF-620). Contra um
   dispositivo simulado, o erro é de 0,04 ms com a máquina quieta e 0,08 ms com metade dos
   processadores ocupados, contra 20 ms sem compensação e um orçamento de 16 ms.
-- Início da camada de terminal: modo raw, tela alternativa e cursor oculto, desfeitos na
-  saída de escopo e em pânico (RF-515, etapa 4.1). Ainda sem uso pelo player, que segue sem
+- Início da camada de terminal: modo raw, tela alternativa e cursor oculto (RF-515), e o
+  terminal restaurado na saída normal, em pânico — inclusive com `panic = "abort"` — e em
+  `SIGINT`, `SIGTERM` e `SIGHUP` (RF-516, RNF-10). Ainda sem uso pelo player, que segue sem
   interface.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
 
@@ -37,6 +38,8 @@ com o erro de sincronismo medido antes de existir a primeira tela.
   Chegam com o motor próprio da etapa 8.
 - O sincronismo foi medido contra um dispositivo simulado. A medição contra hardware real
   está prevista para a etapa 11.
+- No Windows, só a saída normal e o pânico restauram o terminal: lá não existem os sinais do
+  RF-516, e em modo raw o `Ctrl+C` chega como tecla.
 
 ## [0.1.0] — 2026-09-16
 

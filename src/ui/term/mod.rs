@@ -1,17 +1,24 @@
-//! Superfície de desenho: modo raw, tela alternativa e cursor oculto (RF-515).
+//! Superfície de desenho: modo raw, tela alternativa e cursor oculto (RF-515), com o terminal
+//! restaurado em qualquer saída (RF-516).
 //!
-//! São dois estados distintos, e por isso duas guardas:
+//! Quem desfaz o que a [`Session`] fez é uma função só, [`restore`], e ela age **uma vez**. Três
+//! caminhos chegam a ela, porque há três jeitos de o processo terminar:
 //!
-//! * o **modo raw** é do dispositivo de terminal — o processo inteiro o liga e desliga, sem
-//!   escrever nada na saída ([`RawMode`]);
-//! * a **tela alternativa** e o **cursor** são sequências de escape escritas na saída
-//!   ([`Screen`]), e por isso cabem em qualquer `Write` — é assim que os testes as conferem sem
-//!   terminal nenhum.
+//! * a sessão sai de escopo — saída normal, ou pânico que desenrola a pilha;
+//! * o hook de pânico — com `panic = "abort"`, que é o perfil de release, não há desenrolar e o
+//!   `Drop` nunca roda. E mesmo desenrolando, o hook roda **antes** de imprimir a mensagem, que
+//!   de outro jeito seria escrita na tela alternativa e sumiria com ela;
+//! * a linha de sinais, no Unix — `SIGINT`, `SIGTERM` e `SIGHUP` terminam o processo sem
+//!   desenrolar nada.
 //!
-//! [`Session`] junta as duas na ordem certa. Cada guarda desfaz o que fez quando sai de escopo,
-//! inclusive por pânico que desenrole a pilha. Sinais e pânico com `abort` são a etapa 4.2.
+//! Agir uma vez não é detalhe: a sequência que sai da tela alternativa também devolve o cursor à
+//! posição salva na entrada. Repetida depois do hook de pânico, ela levaria o cursor de volta
+//! para cima, e o prompt do shell escreveria por cima da mensagem.
 
 use std::io::{self, Stdout, Write};
+use std::panic;
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::cursor::{Hide, Show};
 use crossterm::execute;
@@ -19,80 +26,129 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 
-/// Modo raw ligado enquanto a guarda existir.
+/// Há uma sessão com o terminal alterado, e ainda ninguém o restaurou.
+static ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// O hook de pânico e a linha de sinais, instalados na primeira sessão.
 ///
-/// No modo raw o terminal entrega cada tecla assim que ela chega, sem eco e sem esperar o
-/// `Enter`, e para de traduzir `\n` em `\r\n` — é o que permite ao player desenhar célula a
-/// célula.
-#[derive(Debug)]
-pub struct RawMode(());
-
-impl RawMode {
-    pub fn enable() -> io::Result<Self> {
-        enable_raw_mode()?;
-        Ok(Self(()))
-    }
-}
-
-impl Drop for RawMode {
-    fn drop(&mut self) {
-        // Não há a quem informar a falha: quem está saindo de escopo pode ser um pânico, e o
-        // terminal que não voltou não tem como mostrar mensagem nenhuma.
-        let _ = disable_raw_mode();
-    }
-}
-
-/// Tela alternativa com o cursor oculto, escritas em `out` enquanto a guarda existir.
-///
-/// A tela alternativa é o que devolve ao usuário, na saída, o terminal exatamente como estava
-/// antes — o histórico de rolagem não recebe um único quadro do player.
-#[derive(Debug)]
-pub struct Screen<W: Write> {
-    out: W,
-}
-
-impl<W: Write> Screen<W> {
-    pub fn enter(mut out: W) -> io::Result<Self> {
-        execute!(out, EnterAlternateScreen, Hide)?;
-        Ok(Self { out })
-    }
-
-    /// Onde desenhar.
-    pub fn out(&mut self) -> &mut W {
-        &mut self.out
-    }
-}
-
-impl<W: Write> Drop for Screen<W> {
-    fn drop(&mut self) {
-        // O inverso de `enter`, na ordem inversa. Falha ignorada pelo mesmo motivo de
-        // `RawMode::drop`.
-        let _ = execute!(self.out, Show, LeaveAlternateScreen);
-    }
-}
+/// Guarda só o tipo do erro porque `io::Error` não é `Clone`, e a falha precisa ser devolvida a
+/// cada sessão que tentar entrar.
+static GUARDS: OnceLock<Result<(), io::ErrorKind>> = OnceLock::new();
 
 /// O terminal inteiro nas mãos do player: modo raw, tela alternativa e cursor oculto.
+///
+/// Uma por processo — são estados do terminal, não do objeto. Uma segunda sessão ao mesmo tempo
+/// é recusada.
 #[derive(Debug)]
 pub struct Session {
-    // A ordem dos campos é a ordem de restauração: o Rust descarta os campos na ordem em que
-    // são declarados. A tela sai primeiro, ainda em modo raw, e só então o terminal volta ao
-    // modo normal — o inverso da entrada.
-    screen: Screen<Stdout>,
-    _raw: RawMode,
+    out: Stdout,
 }
 
 impl Session {
     pub fn enter() -> io::Result<Self> {
+        // Os guardas entram antes do primeiro byte: um sinal no meio da entrada também precisa
+        // encontrar quem restaure.
+        if let Err(kind) = GUARDS.get_or_init(|| install_guards().map_err(|error| error.kind())) {
+            return Err(io::Error::new(
+                *kind,
+                "não foi possível instalar a restauração do terminal",
+            ));
+        }
+        if ACTIVE.swap(true, Ordering::AcqRel) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "o terminal já está em uma sessão",
+            ));
+        }
+
         // O modo raw vem primeiro para que nenhuma tecla digitada durante a troca de tela
-        // apareça em eco. Se a troca falhar, a guarda já existente desliga o modo raw.
-        let raw = RawMode::enable()?;
-        let screen = Screen::enter(io::stdout())?;
-        Ok(Self { screen, _raw: raw })
+        // apareça em eco.
+        if let Err(error) = enable_raw_mode() {
+            ACTIVE.store(false, Ordering::Release);
+            return Err(error);
+        }
+        // Daqui em diante o `Drop` restaura, inclusive se a troca de tela falhar.
+        let mut session = Self { out: io::stdout() };
+        enter_screen(&mut session.out)?;
+        Ok(session)
     }
 
     /// Onde desenhar.
     pub fn out(&mut self) -> &mut Stdout {
-        self.screen.out()
+        &mut self.out
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        restore();
+    }
+}
+
+/// Devolve o terminal ao estado de antes da sessão, se ninguém o fez ainda.
+fn restore() {
+    if !ACTIVE.swap(false, Ordering::AcqRel) {
+        return;
+    }
+    // Não há a quem informar uma falha: quem restaura pode ser um pânico ou um sinal, e o
+    // terminal que não voltou não tem como mostrar mensagem nenhuma.
+    let _ = leave_screen(&mut io::stdout());
+    let _ = disable_raw_mode();
+}
+
+fn enter_screen(out: &mut impl Write) -> io::Result<()> {
+    execute!(out, EnterAlternateScreen, Hide)
+}
+
+/// O inverso de [`enter_screen`], na ordem inversa.
+fn leave_screen(out: &mut impl Write) -> io::Result<()> {
+    execute!(out, Show, LeaveAlternateScreen)
+}
+
+fn install_guards() -> io::Result<()> {
+    let previous = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        restore();
+        previous(info);
+    }));
+
+    #[cfg(unix)]
+    signals::install()?;
+    Ok(())
+}
+
+/// Sinais que terminam o processo sem desenrolar a pilha.
+///
+/// No Windows não há equivalente a tratar: em modo raw o `Ctrl+C` chega como tecla, e fechar o
+/// console encerra o console junto.
+#[cfg(unix)]
+mod signals {
+    use std::io;
+
+    use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
+    use signal_hook::iterator::Signals;
+    use signal_hook::low_level::emulate_default_handler;
+
+    /// Nome da linha que espera pelos sinais, para quem a vir num depurador.
+    const THREAD_NAME: &str = "xmcli-sinais";
+
+    /// `SIGINT` aqui vem de `kill -INT`: em modo raw o `Ctrl+C` não gera sinal, chega como
+    /// tecla. `SIGHUP` é o terminal que fechou — ssh caído, aba fechada.
+    const TERMINATING: [i32; 3] = [SIGINT, SIGTERM, SIGHUP];
+
+    pub(super) fn install() -> io::Result<()> {
+        let mut signals = Signals::new(TERMINATING)?;
+        std::thread::Builder::new()
+            .name(THREAD_NAME.to_owned())
+            .spawn(move || {
+                for signal in signals.forever() {
+                    super::restore();
+                    // Termina como o sinal terminaria, e não com um código de saída: quem chamou
+                    // — o shell, um supervisor — distingue "morto por SIGTERM" de "saiu com erro".
+                    let _ = emulate_default_handler(signal);
+                }
+            })?;
+        Ok(())
     }
 }
 
@@ -106,41 +162,10 @@ mod tests {
     const LEAVE: &[u8] = b"\x1b[?25h\x1b[?1049l";
 
     #[test]
-    fn a_tela_entra_e_sai_na_ordem_inversa() {
+    fn a_saida_da_tela_desfaz_a_entrada_na_ordem_inversa() {
         let mut out = Vec::new();
-        {
-            let screen = Screen::enter(&mut out).expect("escrever em memória não falha");
-            drop(screen);
-        }
-        assert_eq!(out, [ENTER, LEAVE].concat());
-    }
-
-    #[test]
-    fn o_que_se_desenha_fica_entre_a_entrada_e_a_saida() {
-        let mut out = Vec::new();
-        {
-            let mut screen = Screen::enter(&mut out).expect("escrever em memória não falha");
-            screen
-                .out()
-                .write_all(b"quadro")
-                .expect("escrever em memória não falha");
-        }
-        assert_eq!(out, [ENTER, b"quadro", LEAVE].concat());
-    }
-
-    #[test]
-    fn um_panico_ainda_restaura_a_tela() {
-        let out = std::sync::Mutex::new(Vec::new());
-        let result = std::panic::catch_unwind(|| {
-            let mut guard = out.lock().expect("ninguém mais usa o buffer");
-            let _screen = Screen::enter(&mut *guard).expect("escrever em memória não falha");
-            panic!("quadro com defeito");
-        });
-
-        assert!(result.is_err(), "o pânico atravessou a guarda");
-        let out = out
-            .into_inner()
-            .unwrap_or_else(|poison| poison.into_inner());
+        enter_screen(&mut out).expect("escrever em memória não falha");
+        leave_screen(&mut out).expect("escrever em memória não falha");
         assert_eq!(out, [ENTER, LEAVE].concat());
     }
 }

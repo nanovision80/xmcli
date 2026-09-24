@@ -28,6 +28,14 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
 zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
 
+# Sinais de término (RF-516). A mesma versão que o crossterm puxa com a feature `events`.
+[target."cfg(unix)".dependencies]
+signal-hook = "0.3.17"
+
+# Pseudo-terminal para os testes de restauração: o CI não tem terminal (tests/terminal.rs).
+[target."cfg(unix)".dev-dependencies]
+rustix = { version = "1", features = ["pty", "termios"] }
+
 [features]
 default = ["engine-openmpt"]
 # Motor de reprodução externo. Exige libopenmpt no sistema; a etapa 8 do roteiro traz o
