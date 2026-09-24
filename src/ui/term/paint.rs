@@ -50,7 +50,12 @@ const SGR_EXTENDED_RGB: u8 = 2;
 ///
 /// Todo texto vindo de módulo é hostil (CLAUDE.md §2, invariante 6): um ESC num título seria
 /// uma sequência de escape escrita direto no terminal do usuário.
-const CONTROL_REPLACEMENT: char = '\u{FFFD}';
+///
+/// ASCII, e não `U+FFFD`: o substituto precisa ocupar exatamente uma célula em qualquer
+/// terminal, porque a pintura conta com o cursor andando uma casa por caractere. Há terminais
+/// — o `vt100` do harness de snapshot é um — que tratam `U+FFFD` como lixo de decodificação e
+/// não o imprimem, e aí o resto da linha escorregaria uma casa para a esquerda.
+const CONTROL_REPLACEMENT: char = '?';
 
 /// Uma célula como o terminal a mostra: o caractere e as cores já convertidas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -396,7 +401,7 @@ mod tests {
     fn caractere_de_controle_nao_chega_ao_terminal() {
         let mut painter = Painter::new(ColorDepth::Mono);
         let text = encode(&mut painter, &line("a\x1bb"));
-        assert_eq!(text, "\x1b[1;1H\x1b[39;49ma\u{FFFD}b");
+        assert_eq!(text, "\x1b[1;1H\x1b[39;49ma?b");
     }
 
     #[test]

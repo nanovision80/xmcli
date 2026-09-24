@@ -434,7 +434,7 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       — *a grade guarda cor em 24 bits; o `Painter` converte para a profundidade da 4.3 e só
       então compara com o que está na tela, porque duas cores que caem no mesmo índice são a
       mesma cor para quem olha. A caneta vale entre quadros, o cursor só é reaproveitado fora
-      da última coluna e caractere de controle vira `U+FFFD` — texto de módulo é hostil. O
+      da última coluna e caractere de controle vira `?` — texto de módulo é hostil. O
       orçamento `--max-frame-bytes` e a degradação em cascata do RF-621 entram com a medição
       de throughput da 4.5, que é quem sabe quanto cabe.*
 - [x] 4.5 Medição do throughput real do TTY e pacing adaptativo (RF-601, RF-622)
