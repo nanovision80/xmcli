@@ -41,6 +41,13 @@ pub trait Engine {
     /// Duração estimada da música, em segundos.
     fn duration_seconds(&mut self) -> f64;
 
+    /// Salta para `seconds` do começo da música e devolve onde de fato parou (RF-207).
+    ///
+    /// O estado dos canais no destino — notas soando, efeitos em curso, andamento — tem de ser
+    /// o que seria se a música tivesse tocado até ali: o seek reconstrói esse estado, não
+    /// apenas pula para o padrão.
+    fn seek(&mut self, seconds: f64) -> f64;
+
     /// Onde a música está agora, para o barramento de visualização (RF-521).
     ///
     /// Vale para o instante do último quadro renderizado: quem chama é o laço de render, e é
@@ -81,15 +88,18 @@ pub mod test_tone {
 
     pub struct TestTone {
         sample_rate: u32,
+        total_frames: usize,
         remaining_frames: usize,
         phase: f32,
     }
 
     impl TestTone {
         pub fn new(sample_rate: u32, seconds: f64) -> Self {
+            let total_frames = (f64::from(sample_rate) * seconds) as usize;
             Self {
                 sample_rate,
-                remaining_frames: (f64::from(sample_rate) * seconds) as usize,
+                total_frames,
+                remaining_frames: total_frames,
                 phase: 0.0,
             }
         }
@@ -111,6 +121,14 @@ pub mod test_tone {
 
         fn duration_seconds(&mut self) -> f64 {
             self.remaining_frames as f64 / f64::from(self.sample_rate)
+        }
+
+        /// Uma senoide não tem estado além da fase, e a fase no destino não importa ao teste.
+        fn seek(&mut self, seconds: f64) -> f64 {
+            let target =
+                ((f64::from(self.sample_rate) * seconds.max(0.0)) as usize).min(self.total_frames);
+            self.remaining_frames = self.total_frames - target;
+            target as f64 / f64::from(self.sample_rate)
         }
 
         /// Uma senoide não tem padrão, linha nem canal de tracker: o estado é o ocioso.

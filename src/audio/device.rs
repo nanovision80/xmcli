@@ -69,9 +69,9 @@ pub struct Played {
 
 /// Pedido da interface à linha de áudio (etapa 2.6).
 ///
-/// Os comandos entram com quem os envia: parar e pausar com o transporte; seek e volume com
-/// a barra de seek e os sliders.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Os comandos entram com quem os envia: parar e pausar com o transporte, seek com a barra de
+/// seek; volume com os sliders.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Command {
     /// Parar agora, sem esperar o anel esvaziar.
     Stop,
@@ -79,6 +79,26 @@ pub enum Command {
     Pause,
     /// Voltar a tocar do ponto exato em que pausou.
     Resume,
+    /// Continuar a música deste ponto, em segundos do começo (RF-504).
+    Seek(f64),
+}
+
+/// O que a fila de comandos pediu desde a última olhada, além de pausa e retomada, que a linha
+/// alimentadora atende na hora.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct Requests {
+    stop: bool,
+    /// Só o último destino importa: uma tecla segurada enfileira vários, e cada seek custa uma
+    /// simulação da música até o ponto.
+    seek: Option<f64>,
+}
+
+/// Até onde a linha alimentadora levou a música.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Fed {
+    /// Quadros empurrados para o anel: o comprimento do fluxo de música.
+    frames: u64,
+    stopped: bool,
 }
 
 /// Comandos que cabem na fila antes de o remetente desistir de enfileirar.
@@ -205,31 +225,66 @@ impl Feeder {
         };
         let _ = ready.send(Ok(duration));
 
-        let mut block = vec![0.0_f32; BLOCK_FRAMES * CHANNELS];
-        let mut rendered_frames = 0_u64;
-        let mut stopped = false;
-        while !stopped {
-            let frames = engine.render(&mut block);
-            if frames == 0 {
-                break;
-            }
-            rendered_frames += frames as u64;
-            stopped = !self.push_all(&mut producer, &block[..frames * CHANNELS]);
-        }
+        let fed = self.feed(engine.as_mut(), &mut producer);
         self.clock.mark_finished();
 
         // Espera o dispositivo consumir o que ainda está no anel antes de encerrar o fluxo —
-        // a não ser que tenham pedido para parar, e aí o resto do anel não interessa.
-        while !stopped && self.clock.frames_played() < rendered_frames {
-            stopped = self.stop_requested();
+        // a não ser que tenham pedido para parar, e aí o resto do anel não interessa. Um seek
+        // aqui chega tarde: a música já acabou de ser renderizada.
+        let mut stopped = fed.stopped;
+        while !stopped && self.clock.frames_played() < fed.frames {
+            stopped = self.poll().stop;
             std::thread::sleep(FEEDER_IDLE);
         }
         drop(stream);
 
         Ok(Played {
-            frames: rendered_frames,
+            frames: fed.frames,
             underrun_frames: self.clock.underruns(),
         })
+    }
+
+    /// Renderiza e empurra para o anel até a música acabar ou pedirem para parar.
+    ///
+    /// Espera enquanto o anel está cheio, olhando a fila de comandos a cada volta. Num seek,
+    /// o resto do bloco em mãos é da posição antiga e é descartado.
+    fn feed(&mut self, engine: &mut dyn Engine, producer: &mut impl Producer<Item = f32>) -> Fed {
+        let mut block = vec![0.0_f32; BLOCK_FRAMES * CHANNELS];
+        let mut pushed_samples = 0_u64;
+        let frames = |samples: u64| samples / CHANNELS as u64;
+
+        'render: loop {
+            let rendered = engine.render(&mut block);
+            if rendered == 0 {
+                return Fed {
+                    frames: frames(pushed_samples),
+                    stopped: false,
+                };
+            }
+            let mut samples = &block[..rendered * CHANNELS];
+            while !samples.is_empty() {
+                let requests = self.poll();
+                if requests.stop {
+                    return Fed {
+                        frames: frames(pushed_samples),
+                        stopped: true,
+                    };
+                }
+                if let Some(target) = requests.seek {
+                    let reached = engine.seek(target);
+                    let song_frame =
+                        (reached.max(0.0) * f64::from(self.sample_rate)).round() as u64;
+                    self.clock.mark_seek(song_frame, frames(pushed_samples));
+                    continue 'render;
+                }
+                let pushed = producer.push_slice(samples);
+                samples = &samples[pushed..];
+                pushed_samples += pushed as u64;
+                if pushed == 0 {
+                    std::thread::sleep(FEEDER_IDLE);
+                }
+            }
+        }
     }
 
     /// Abre o fluxo do dispositivo, já tocando, e devolve o lado que o alimenta.
@@ -261,34 +316,18 @@ impl Feeder {
         Ok((stream, producer))
     }
 
-    /// Empurra o bloco inteiro para o anel, esperando enquanto ele estiver cheio.
-    ///
-    /// Devolve `false` se pediram para parar no meio da espera.
-    fn push_all(&mut self, producer: &mut impl Producer<Item = f32>, mut samples: &[f32]) -> bool {
-        while !samples.is_empty() {
-            if self.stop_requested() {
-                return false;
-            }
-            let pushed = producer.push_slice(samples);
-            samples = &samples[pushed..];
-            if pushed == 0 {
-                std::thread::sleep(FEEDER_IDLE);
-            }
-        }
-        true
-    }
-
-    /// Atende a fila de comandos e diz se algum deles pediu para parar.
-    fn stop_requested(&mut self) -> bool {
-        let mut stop = false;
+    /// Atende pausa e retomada na hora e devolve o resto do que a fila pediu.
+    fn poll(&mut self) -> Requests {
+        let mut requests = Requests::default();
         while let Some(command) = self.commands.try_pop() {
             match command {
-                Command::Stop => stop = true,
+                Command::Stop => requests.stop = true,
                 Command::Pause => self.clock.set_paused(true),
                 Command::Resume => self.clock.set_paused(false),
+                Command::Seek(seconds) => requests.seek = Some(seconds),
             }
         }
-        stop
+        requests
     }
 }
 
@@ -339,6 +378,7 @@ fn pick(wanted: Option<&str>) -> Result<cpal::Device, DeviceError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::player::test_tone::TestTone;
     use ringbuf::traits::Observer;
 
     const RATE: u32 = 44_100;
@@ -351,6 +391,80 @@ mod tests {
         let (mut producer, consumer) = HeapRb::<f32>::new((frames * CHANNELS).max(1)).split();
         producer.push_iter((1..=frames * CHANNELS).map(|sample| sample as f32));
         consumer
+    }
+
+    /// Uma linha alimentadora sem dispositivo, e o lado de quem manda comandos.
+    fn feeder() -> (Feeder, HeapProd<Command>) {
+        let (commands, pending) = HeapRb::<Command>::new(COMMAND_CAPACITY).split();
+        let feeder = Feeder {
+            clock: Clock::new(RATE),
+            commands: pending,
+            sample_rate: RATE,
+            latency_ms: 0,
+        };
+        (feeder, commands)
+    }
+
+    /// Um anel onde a música inteira cabe, para `feed` nunca esperar.
+    fn roomy_ring(seconds: f64) -> (HeapProd<f32>, HeapCons<f32>) {
+        HeapRb::<f32>::new((f64::from(RATE) * seconds) as usize * CHANNELS).split()
+    }
+
+    #[test]
+    fn feed_empurra_a_musica_inteira() {
+        let (mut feeder, _commands) = feeder();
+        let mut tone = TestTone::new(RATE, 0.1);
+        let (mut producer, consumer) = roomy_ring(0.1);
+
+        let fed = feeder.feed(&mut tone, &mut producer);
+        assert_eq!(fed.frames, u64::from(RATE) / 10);
+        assert!(!fed.stopped);
+        assert_eq!(
+            consumer.occupied_len(),
+            (u64::from(RATE) / 10) as usize * CHANNELS
+        );
+    }
+
+    #[test]
+    fn seek_descarta_o_bloco_antigo_e_marca_o_trecho() {
+        let (mut feeder, mut commands) = feeder();
+        // Meio segundo de música; o seek pula direto para 0,4 s.
+        let mut tone = TestTone::new(RATE, 0.5);
+        let (mut producer, _consumer) = roomy_ring(0.5);
+        let _ = commands.try_push(Command::Seek(0.4));
+
+        let fed = feeder.feed(&mut tone, &mut producer);
+        // O primeiro bloco, da posição 0, foi jogado fora antes de entrar no anel: o fluxo tem
+        // só o último 0,1 s.
+        assert_eq!(fed.frames, u64::from(RATE) / 10);
+        // O índice 0 do fluxo é o quadro de 0,4 s da faixa.
+        feeder.clock.deliver(0);
+        assert_eq!(feeder.clock.song_frame(), u64::from(RATE) * 4 / 10);
+    }
+
+    #[test]
+    fn so_o_ultimo_seek_da_fila_vale() {
+        let (mut feeder, mut commands) = feeder();
+        let _ = commands.try_push(Command::Seek(0.1));
+        let _ = commands.try_push(Command::Pause);
+        let _ = commands.try_push(Command::Seek(0.3));
+
+        let requests = feeder.poll();
+        assert_eq!(requests.seek, Some(0.3));
+        assert!(!requests.stop);
+        assert!(feeder.clock.is_paused());
+    }
+
+    #[test]
+    fn parar_interrompe_o_feed() {
+        let (mut feeder, mut commands) = feeder();
+        let mut tone = TestTone::new(RATE, 0.5);
+        let (mut producer, _consumer) = roomy_ring(0.5);
+        let _ = commands.try_push(Command::Stop);
+
+        let fed = feeder.feed(&mut tone, &mut producer);
+        assert!(fed.stopped);
+        assert_eq!(fed.frames, 0);
     }
 
     #[test]

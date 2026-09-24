@@ -55,6 +55,13 @@ impl Engine for OpenMptEngine {
         self.module.get_duration_seconds()
     }
 
+    fn seek(&mut self, seconds: f64) -> f64 {
+        // O libopenmpt reconstrói o estado dos canais simulando a música até o destino, sem
+        // mixar: é o fast-forward silencioso do RF-207, feito por ele. O motor próprio da
+        // etapa 8 terá de fazer o mesmo.
+        self.module.set_position_seconds(seconds)
+    }
+
     fn snapshot(&mut self) -> Snapshot {
         // Canais além do teto de padrão dos quatro formatos só aparecem em módulos de
         // extensões que este programa não abre; ignorá-los é preferível a truncar o arranjo

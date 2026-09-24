@@ -88,3 +88,34 @@ fn modulo_com_dados_reais_produz_audio() {
 fn conteudo_invalido_nao_carrega_o_motor() {
     assert!(player::load(b"isto nao e um modulo", SAMPLE_RATE).is_err());
 }
+
+#[test]
+fn seek_leva_o_motor_ao_ponto_pedido() {
+    let mut engine = player::load(&audible_module(), SAMPLE_RATE).expect("o módulo é válido");
+    let duration = engine.duration_seconds();
+    let target = duration / 2.0;
+
+    let reached = engine.seek(target);
+    // O libopenmpt para no começo da linha que contém o destino, não no quadro exato.
+    let row_seconds = duration / 64.0;
+    assert!(
+        (reached - target).abs() <= row_seconds,
+        "pediu {target:.3} s e parou em {reached:.3} s"
+    );
+
+    // Dali até o fim cabe só o que faltava da música.
+    let mut block = vec![0.0_f32; 1_024 * player::CHANNELS];
+    let mut frames = 0;
+    loop {
+        let rendered = engine.render(&mut block);
+        if rendered == 0 {
+            break;
+        }
+        frames += rendered;
+    }
+    let rest = (duration - reached) * f64::from(SAMPLE_RATE);
+    assert!(
+        (frames as f64 - rest).abs() < f64::from(SAMPLE_RATE) / 10.0,
+        "sobraram {frames} quadros, esperado perto de {rest:.0}"
+    );
+}

@@ -18,7 +18,7 @@
 //! dispositivo real (etapa 11).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::time::Instant;
 
 /// Nanossegundos em um segundo, para converter tempo decorrido em quadros.
@@ -50,6 +50,15 @@ pub struct Clock {
     /// pela fila de comandos; lido pelo callback. Pausado, o callback não consome nem entrega nada, então
     /// a contagem para e o audível fica no que já foi entregue.
     paused: AtomicBool,
+    /// Quanto somar ao índice no fluxo de música para ter o quadro dentro da faixa (RF-504).
+    ///
+    /// O fluxo é tudo que passou pelo anel, contado por [`Self::frames_played`]; sem seek,
+    /// fluxo e faixa coincidem. Cada seek começa um trecho novo, e o deslocamento é o destino
+    /// menos o índice do fluxo em que o trecho começa. Como a âncora, é um valor só: a posição
+    /// sai coerente de uma leitura, sem par que possa ser lido pela metade.
+    ///
+    /// Escrito pela linha alimentadora, lido pela interface.
+    song_offset: AtomicI64,
 }
 
 impl Clock {
@@ -62,6 +71,7 @@ impl Clock {
             underruns: AtomicU64::new(0),
             finished: AtomicBool::new(false),
             paused: AtomicBool::new(false),
+            song_offset: AtomicI64::new(0),
         })
     }
 
@@ -141,6 +151,28 @@ impl Clock {
     pub fn is_paused(&self) -> bool {
         self.paused.load(Ordering::Acquire)
     }
+
+    /// Registra que o quadro `song_frame` da faixa entra no fluxo no índice `stream_frame`.
+    pub fn mark_seek(&self, song_frame: u64, stream_frame: u64) {
+        let offset = i128::from(song_frame) - i128::from(stream_frame);
+        let offset = i64::try_from(offset).unwrap_or(if offset < 0 { i64::MIN } else { i64::MAX });
+        self.song_offset.store(offset, Ordering::Release);
+    }
+
+    /// Quadro da faixa que está soando agora: o audível, levado para dentro da faixa.
+    ///
+    /// Logo depois de um seek o anel ainda tem o que foi renderizado antes dele, e o valor
+    /// chega ao destino conforme esse resto toca — uns poucos quadros de interface.
+    pub fn song_frame(&self) -> u64 {
+        let offset = self.song_offset.load(Ordering::Acquire);
+        let frame = i128::from(self.audible_frame()) + i128::from(offset);
+        u64::try_from(frame.max(0)).unwrap_or(u64::MAX)
+    }
+
+    /// [`Self::song_frame`] em segundos.
+    pub fn song_seconds(&self) -> f64 {
+        self.song_frame() as f64 / f64::from(self.sample_rate)
+    }
 }
 
 #[cfg(test)]
@@ -203,6 +235,24 @@ mod tests {
             advanced >= expected / 2,
             "audível andou {advanced} quadros, esperado ao menos metade de {expected}"
         );
+    }
+
+    #[test]
+    fn seek_leva_o_fluxo_para_dentro_da_faixa() {
+        const STREAM: u64 = 1_000;
+
+        let clock = Clock::new(RATE);
+        clock.deliver(STREAM);
+        // Espera o bastante para o audível chegar ao teto do entregue.
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(clock.song_frame(), STREAM);
+
+        // Para a frente: o fluxo no índice 500 é o quadro 90 000 da faixa.
+        clock.mark_seek(90_000, 500);
+        assert_eq!(clock.song_frame(), 90_500);
+        // Para trás, até antes do começo do fluxo.
+        clock.mark_seek(0, 800);
+        assert_eq!(clock.song_frame(), 200);
     }
 
     #[test]
