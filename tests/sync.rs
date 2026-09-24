@@ -73,13 +73,16 @@ fn delivery_instant(start: Instant, delivery: u64) -> Instant {
     start + buffer_period().mul_f64(delivery as f64)
 }
 
-/// Espera até `deadline` cedendo a vez, sem dormir.
+/// Espera até `deadline` girando no lugar, sem dormir e sem ceder a vez.
 ///
 /// `sleep` erra por milissegundos em alguns sistemas — justamente a grandeza que este teste
-/// mede.
+/// mede. Ceder a vez com `yield_now` também: no macOS ele vira `sched_yield`, que rebaixa a
+/// prioridade da linha por até um quantum de 10 ms, e qualquer outra linha pronta toma o
+/// processador. No CI do macOS isso atrasou 8 de 40 entregas do dispositivo simulado com a
+/// máquina quieta, a pior em 18,7 ms, e derrubou a corrida por falta de leitura válida.
 fn spin_until(deadline: Instant) {
     while Instant::now() < deadline {
-        std::thread::yield_now();
+        std::hint::spin_loop();
     }
 }
 
@@ -497,6 +500,11 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
             Ok(reading) => reading,
             Err(rejection) => {
                 rejections.count(rejection);
+                // A interface consome a cada quadro, valha a leitura para a medida ou não. Parar
+                // de consumir aqui faria o barramento descartar blocos sempre que o agendador
+                // atrapalhasse por meio segundo, e a asserção de perda mediria o filtro, não o
+                // consumidor.
+                viewer.frame_at(clock.audible_frame());
                 continue;
             }
         };
