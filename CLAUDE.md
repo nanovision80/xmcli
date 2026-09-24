@@ -454,10 +454,24 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       tamanho perguntado ao terminal, não o do aviso, que com fila já chega velho. O
       `Painter::invalidate` força a repintura inteira mesmo quando o tamanho volta ao de
       antes. Recolher painéis por prioridade é layout, e entra na 5.1.*
-- [ ] 4.7 Harness de snapshot de terminal para os testes de UI
+- [x] 4.7 Harness de snapshot de terminal para os testes de UI
+      — *`tests/vt/`: os bytes do `Painter` passam pelo `vt100`, um emulador independente, e a
+      foto é a tela dele, em texto revisável no diff — caracteres, mapa de cores e legenda.
+      Referências em `tests/snapshots/`; `XMCLI_ATUALIZAR_SNAPSHOTS=1` grava, e referência
+      ausente falha, nunca é criada calada. `tests/painter.rs` fotografa um cartão de teste
+      nas quatro profundidades e confere que o diff entre quadros, inclusive através de um
+      redimensionamento, chega à mesma tela que pintar do zero. A matriz de tamanhos da §7
+      entra com o layout da etapa 5, que é o que muda com o tamanho. O harness pegou um
+      defeito da 4.4 no primeiro uso: o substituto `U+FFFD` não é impresso por todo terminal,
+      e o resto da linha escorregava — virou `?`.*
 
-> **Marco:** um quadro cheio cabe no orçamento de bytes (RNF-07) e o terminal volta ao normal
-> mesmo se o processo morrer de forma feia.
+> **Marco atingido em parte.** O terminal volta ao normal em qualquer saída (4.2). Um quadro
+> cheio de 80×24 no estilo do cromo custa 5,9 KB em qualquer profundidade, dentro dos 13,6 KB
+> do orçamento padrão. O pior caso — cor diferente em cada célula, que é ruído de palco — não
+> cabe: 70 KB em truecolor, 42 KB em 256 e 20 KB em 16. Nesse caso a banda continua nos
+> 400 KB/s de RNF-07, porque o `Pacer` espaça os quadros (cerca de 20 fps em 16 cores), mas
+> o fps mínimo não se sustenta. Fazer o palco caber é a degradação da 6.9: resolução e
+> pixel → rampa ASCII.
 
 ### Etapa 5 — Cromo do player
 *Depende de: 3 e 4. Produz: o player utilizável. **Fecha a F1.***

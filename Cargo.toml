@@ -33,6 +33,11 @@ zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
 [target."cfg(unix)".dependencies]
 signal-hook = "0.3.17"
 
+# Emulador de terminal para o harness de snapshot: confere os bytes do `Painter` contra uma
+# implementação independente de VT100/xterm, e não contra o próprio código (tests/screen).
+[dev-dependencies]
+vt100 = "0.16.2"
+
 # Pseudo-terminal para os testes de restauração: o CI não tem terminal (tests/terminal.rs).
 [target."cfg(unix)".dev-dependencies]
 rustix = { version = "1", features = ["pty", "termios"] }

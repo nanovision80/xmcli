@@ -49,6 +49,11 @@ com o erro de sincronismo medido antes de existir a primeira tela.
 
 ### Notas
 
+- A interface ganhou um harness de snapshot: a saída passa por um emulador de terminal
+  independente (`vt100`) e a tela é comparada com referências em `tests/snapshots/`. Um
+  quadro cheio de 80×24 no estilo do cromo custa 5,9 KB; com cor diferente em cada célula,
+  de 20 KB (16 cores) a 70 KB (truecolor), acima dos 13,6 KB do orçamento padrão — o palco
+  vai precisar da degradação da etapa 6.9.
 - Tick, nota e instrumento por canal ainda não entram no snapshot: o libopenmpt não os expõe.
   Chegam com o motor próprio da etapa 8.
 - O sincronismo foi medido contra um dispositivo simulado. A medição contra hardware real
