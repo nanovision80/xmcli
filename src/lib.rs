@@ -12,3 +12,4 @@ pub mod info;
 pub mod io;
 pub mod player;
 pub mod song;
+pub mod ui;
