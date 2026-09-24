@@ -402,6 +402,12 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
 > A medida separa "o modelo errou" de "o agendador atrapalhou": leitura demorada, entrega
 > simulada atrasada ou vencida não contam, e a corrida falha se sobrar pouca amostra válida —
 > uma máquina que não sustenta a medição precisa dizer isso, não devolver um número bonito.
+>
+> **O marco só fechou com o CI verde depois de um conserto.** No macOS a corrida recusava
+> metade das leituras. A falha agora diz qual filtro recusou, e a contagem apontou o
+> dispositivo simulado: a espera ativa cedia a vez com `yield_now`, que no macOS vira
+> `sched_yield` e tira a prioridade da linha por até 10 ms. Espera ativa em teste de tempo gira
+> com `spin_loop` e não cede nada. Antes de baixar um limite de validade, leia a contagem.
 
 ### Etapa 4 — Camada de terminal
 *Depende de: 0 (pode correr em paralelo com 2–3). Produz: superfície de desenho confiável.*
