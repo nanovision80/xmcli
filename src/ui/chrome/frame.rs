@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::config::{Marquee, Theme};
 use crate::ui::chrome::layout::{Layout, MIN_HEIGHT, MIN_WIDTH, Rect, layout};
-use crate::ui::chrome::{marquee, transport};
+use crate::ui::chrome::{marquee, seek, transport};
 use crate::ui::term::buffer::{Buffer, Cell};
 use crate::ui::term::color::Rgb;
 use crate::ui::transport::Transport;
@@ -23,6 +23,8 @@ const VERTICAL: char = '|';
 const HEADER_PREFIX: &str = " xmcli  >> ";
 /// O que fecha o título no cabeçalho.
 const HEADER_SUFFIX: &str = " << ";
+/// Espaço entre a moldura e o que as linhas de baixo mostram.
+const MARGIN: u16 = 1;
 // Os dois são ASCII, então cada byte é uma célula.
 const PREFIX_WIDTH: u16 = HEADER_PREFIX.len() as u16;
 const SUFFIX_WIDTH: u16 = HEADER_SUFFIX.len() as u16;
@@ -35,6 +37,11 @@ pub struct View<'a> {
     /// Tempo desde que a faixa apareceu na tela; é o que move o marquee.
     pub elapsed: Duration,
     pub transport: Transport,
+    /// Onde a música está dentro da faixa, em segundos: o que está soando, não o que foi
+    /// mixado (RF-620).
+    pub position: f64,
+    /// Duração da faixa, em segundos.
+    pub duration: f64,
 }
 
 /// Desenha o quadro inteiro do cromo: fundo, moldura, cabeçalho e, se o terminal for pequeno,
@@ -67,6 +74,7 @@ pub fn draw(frame: &mut Buffer, theme: &Theme, view: &View) {
                 ..text
             };
             buttons(frame, regions.transport, view.transport, text, active);
+            seek_bar(frame, regions.seek, view, text, active);
             // Uma linha de moldura acima de cada parte, e a última embaixo de tudo.
             let last = frame.height() - 1;
             for y in [
@@ -120,6 +128,20 @@ fn buttons(frame: &mut Buffer, rect: Rect, state: Transport, idle: Cell, active:
         // Os botões são ASCII: cada byte é uma célula.
         x = x.saturating_add(piece.text.len() as u16);
     }
+}
+
+/// A barra de seek, com o ponto atual na cor de destaque e um espaço de margem de cada lado.
+fn seek_bar(frame: &mut Buffer, rect: Rect, view: &View, style: Cell, knob: Cell) {
+    let width = usize::from(rect.width.saturating_sub(MARGIN + MARGIN));
+    let Some(bar) = seek::bar(width, view.position, view.duration) else {
+        return;
+    };
+    let x = rect.x + MARGIN;
+    write(frame, x, rect.y, &bar.text, style);
+    // A barra é ASCII e cabe na região, que tem largura u16.
+    let knob_x = x + bar.knob as u16;
+    let ch = frame.get(knob_x, rect.y).map_or(' ', |cell| cell.ch);
+    frame.set(knob_x, rect.y, Cell { ch, ..knob });
 }
 
 fn fill(frame: &mut Buffer, cell: Cell) {

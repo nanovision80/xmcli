@@ -5,6 +5,13 @@ o projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+
+- Barra de seek: mostra onde está o que está soando dentro da faixa, e as setas `←`/`→`
+  avançam e recuam `ui.seek_step_seconds` (5 s por padrão), tocando ou pausado. O seek
+  reconstrói o estado dos canais no destino, como se a música tivesse tocado até ali
+  (RF-504, RF-207).
+
 ### Corrigido
 
 - Depois de um estouro do dispositivo, o fim da música era cortado: o relógio contava como

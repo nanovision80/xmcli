@@ -94,6 +94,8 @@ pub fn run(
             marquee: &setup.settings.ui.marquee,
             elapsed: opened.elapsed(),
             transport: state,
+            position: playback.clock.song_seconds(),
+            duration: playback.duration_seconds,
         };
         chrome::frame::draw(&mut screen.frame, setup.theme, &view);
 
@@ -115,6 +117,16 @@ pub fn run(
                     Step::Pause if playback.send(Command::Pause) => state = Transport::Paused,
                     Step::Resume if playback.send(Command::Resume) => state = Transport::Playing,
                     Step::Pause | Step::Resume => {}
+                    Step::Seek { forward } => {
+                        let target = transport::seek_target(
+                            playback.clock.song_seconds(),
+                            playback.duration_seconds,
+                            f64::from(setup.settings.ui.seek_step_seconds),
+                            forward,
+                        );
+                        // Fila cheia com a tecla segurada: o próximo toque tenta de novo.
+                        let _ = playback.send(Command::Seek(target));
+                    }
                     Step::Leave(exit) => {
                         playback.stop();
                         return Ok(exit);

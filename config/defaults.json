@@ -26,6 +26,7 @@
     "marquee": {
       "chars_per_second": 6,
       "pause_ms": 2000
-    }
+    },
+    "seek_step_seconds": 5
   }
 }

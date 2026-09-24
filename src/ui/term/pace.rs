@@ -174,6 +174,7 @@ mod tests {
                 chars_per_second: 1,
                 pause_ms: 0,
             },
+            seek_step_seconds: 1,
         }
     }
 

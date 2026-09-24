@@ -21,7 +21,7 @@
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
 || |<  (>)  ||   []   >|                                                        ||
-||                                                                              ||
+|| [o-------------------------------------------------------------------------] ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
 --- cores
@@ -46,7 +46,7 @@
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 |abbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
-|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acbdbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 --- legenda

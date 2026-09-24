@@ -60,6 +60,10 @@ pub enum Action {
     Previous,
     /// Próxima faixa da lista.
     Next,
+    /// Avançar a música um passo de `ui.seek_step_seconds` (RF-504).
+    SeekForward,
+    /// Recuar a música um passo.
+    SeekBackward,
 }
 
 /// Uma tecla, independente de biblioteca de terminal.

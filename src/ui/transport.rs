@@ -24,6 +24,8 @@ pub enum Step {
     Pause,
     /// Retomar esta reprodução, pausada ou parada no começo.
     Resume,
+    /// Levar a música um passo para a frente (`true`) ou para trás (`false`).
+    Seek { forward: bool },
     /// Esta reprodução termina.
     Leave(Exit),
 }
@@ -45,7 +47,23 @@ pub fn press(state: Transport, action: Action) -> Step {
         (Action::Pause, Stopped) => Step::Stay,
         (Action::PlayPause, Playing) => Step::Pause,
         (Action::PlayPause, Paused | Stopped) => Step::Resume,
+        // Parado é o começo da faixa esperando o play, como no Winamp: as setas não o movem.
+        (Action::SeekForward | Action::SeekBackward, Stopped) => Step::Stay,
+        (Action::SeekForward, Playing | Paused) => Step::Seek { forward: true },
+        (Action::SeekBackward, Playing | Paused) => Step::Seek { forward: false },
     }
+}
+
+/// Para onde um passo de seek leva a música, sem sair da faixa.
+///
+/// Passar do fim é chegar ao fim, e a faixa termina; antes do começo é o começo.
+pub fn seek_target(position: f64, duration: f64, step: f64, forward: bool) -> f64 {
+    let target = if forward {
+        position + step
+    } else {
+        position - step
+    };
+    target.clamp(0.0, duration.max(0.0))
 }
 
 #[cfg(test)]
@@ -84,6 +102,30 @@ mod tests {
             press(Playing, Action::Play),
             Step::Leave(Exit::Rewind(Playing))
         );
+    }
+
+    #[test]
+    fn setas_movem_a_musica_so_fora_do_parado() {
+        for state in [Playing, Paused] {
+            assert_eq!(
+                press(state, Action::SeekForward),
+                Step::Seek { forward: true }
+            );
+            assert_eq!(
+                press(state, Action::SeekBackward),
+                Step::Seek { forward: false }
+            );
+        }
+        assert_eq!(press(Stopped, Action::SeekForward), Step::Stay);
+        assert_eq!(press(Stopped, Action::SeekBackward), Step::Stay);
+    }
+
+    #[test]
+    fn o_seek_nao_sai_da_faixa() {
+        assert_eq!(seek_target(10.0, 100.0, 5.0, true), 15.0);
+        assert_eq!(seek_target(10.0, 100.0, 5.0, false), 5.0);
+        assert_eq!(seek_target(2.0, 100.0, 5.0, false), 0.0);
+        assert_eq!(seek_target(98.0, 100.0, 5.0, true), 100.0);
     }
 
     #[test]

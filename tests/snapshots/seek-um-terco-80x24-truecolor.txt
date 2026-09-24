@@ -1,7 +1,7 @@
 80x24 truecolor
 --- texto
 |+------------------------------------------------------------------------------+|
-|| xmcli  >> n of Image, 1991. Greetings to all trackers -- space_debris.mod << ||
+|| xmcli  >> Space Debris by Captain of Image, 1991. Greetings to all tracke << ||
 |+------------------------------------------------------------------------------+|
 ||                                                                              ||
 ||                                                                              ||
@@ -21,7 +21,7 @@
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
 || |<  (>)  ||   []   >|                                                        ||
-|| [o-------------------------------------------------------------------------] ||
+|| [========================o-------------------------------------------------] ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
 --- cores
@@ -46,7 +46,7 @@
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 |abbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
-|acbdbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbca|
+|acbbbbbbbbbbbbbbbbbbbbbbbbbdbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
 --- legenda

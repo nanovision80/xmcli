@@ -504,7 +504,18 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       pausado no começo; `play` tocando recomeça. Anterior e próxima andam na lista de
       entrada, que vira a playlist na 5.9. Para trocar de faixa sem piscar, a tela passou a
       ficar aberta para a lista inteira, e o que iria para `stderr` espera ela fechar.*
-- [ ] 5.4 Barra de seek ligada ao *fast-forward* silencioso (RF-504, RF-207)
+- [x] 5.4 Barra de seek ligada ao *fast-forward* silencioso (RF-504, RF-207)
+      — *`[=====o-----]` com o ponto na cor `active`; `←`/`→` andam `ui.seek_step_seconds`,
+      tocando ou pausado (parado, não). O `Engine` ganhou `seek`; no libopenmpt,
+      `set_position_seconds` já reconstrói o estado simulando sem mixar — o fast-forward
+      silencioso do RF-207 feito por ele, que o motor próprio da 8.9 terá de refazer. A
+      linha alimentadora descarta o resto do bloco antigo e junta os seeks da fila num só; o
+      que já estava no anel ainda toca antes do destino (uns 90 ms com a latência padrão). A
+      posição mostrada é a do quadro **audível** dentro da faixa: o relógio guarda um
+      deslocamento único entre o fluxo de música e a faixa, trocado a cada seek, pelo mesmo
+      motivo da âncora da 3.4. Para isso ele passou a contar só quadros de música, o que
+      corrigiu o corte do fim da música depois de um estouro. O mouse (`--mouse`) é a 10.3; os
+      números de tempo, a 5.5.*
 - [ ] 5.5 Display de tempo alternável entre decorrido e restante (RF-505)
 - [ ] 5.6 Sliders de volume e de balanço/separação estéreo (RF-506)
 - [ ] 5.7 Barra de status com o equivalente tracker do rodapé do Winamp (RF-507)

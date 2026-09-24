@@ -58,6 +58,9 @@ const MARQUEE_SPEED_MAX: u16 = 60;
 /// Maior pausa aceita nas pontas do marquee, em ms. Mais que isso o título parece parado.
 const MARQUEE_PAUSE_MAX_MS: u16 = 10_000;
 
+/// Maior passo de seek aceito, em segundos. Mais que isso a tecla pula a música inteira.
+const SEEK_STEP_MAX_SECONDS: u16 = 600;
+
 /// Maior percentual aceito; o menor é 1, porque zero anularia o que o percentual mede.
 const PERCENT_MAX: u8 = 100;
 
@@ -145,6 +148,8 @@ pub struct Ui {
     /// Teto da espera por subir: cada subida que não se sustenta dobra a espera até aqui.
     pub recover_frames_max: u32,
     pub marquee: Marquee,
+    /// Quanto cada toque nas setas avança ou recua a música, em segundos (RF-504).
+    pub seek_step_seconds: u16,
 }
 
 /// Rolagem do título no cabeçalho (RF-502).
@@ -274,6 +279,12 @@ impl Ui {
             u64::from(self.marquee.pause_ms),
             0,
             u64::from(MARQUEE_PAUSE_MAX_MS),
+        )?;
+        check_range(
+            "ui.seek_step_seconds",
+            u64::from(self.seek_step_seconds),
+            1,
+            u64::from(SEEK_STEP_MAX_SECONDS),
         )
     }
 }
