@@ -11,6 +11,9 @@ o projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/).
   avançam e recuam `ui.seek_step_seconds` (5 s por padrão), tocando ou pausado. O seek
   reconstrói o estado dos canais no destino, como se a música tivesse tocado até ali
   (RF-504, RF-207).
+- Display de tempo no transporte, decorrido ou restante (`01:23 / 04:57`, `-03:34 / 04:57`),
+  alternado com `t`; o modo inicial vem de `ui.time_display` (RF-505). O anúncio da faixa
+  sem interface passa a mostrar a duração no mesmo formato, `mm:ss`.
 
 ### Corrigido
 

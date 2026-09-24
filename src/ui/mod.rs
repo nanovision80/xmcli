@@ -11,7 +11,7 @@ use std::io;
 use std::time::Instant;
 
 use crate::audio::device::{Command, Playback};
-use crate::config::{Keymap, Settings, Theme};
+use crate::config::{Action, Keymap, Settings, Theme, TimeDisplay};
 use crate::ui::chrome::frame::View;
 use crate::ui::term::Session;
 use crate::ui::term::buffer::Buffer;
@@ -55,6 +55,8 @@ pub struct Screen {
     painter: Painter,
     pacer: Pacer,
     frame: Buffer,
+    /// O modo do display de tempo que o usuário escolheu, que vale para a lista inteira.
+    time: TimeDisplay,
 }
 
 impl Screen {
@@ -66,6 +68,7 @@ impl Screen {
             painter: Painter::new(setup.colors),
             pacer: Pacer::new(&setup.settings.ui, setup.colors),
             frame: Buffer::new(width, height),
+            time: setup.settings.ui.time_display,
         })
     }
 }
@@ -96,6 +99,7 @@ pub fn run(
             transport: state,
             position: playback.clock.song_seconds(),
             duration: playback.duration_seconds,
+            time: screen.time,
         };
         chrome::frame::draw(&mut screen.frame, setup.theme, &view);
 
@@ -111,6 +115,7 @@ pub fn run(
         while let Some(input) = input::next(started + pace.interval, setup.keymap)? {
             match input {
                 Input::Resized => resized = true,
+                Input::Action(Action::ToggleTime) => screen.time = screen.time.toggled(),
                 Input::Action(action) => match transport::press(state, action) {
                     Step::Stay => {}
                     // Fila cheia: o pedido não entrou, e o botão não pode mentir.

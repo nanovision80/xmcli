@@ -20,7 +20,7 @@
 ||                                                                              ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
-|| |<  (>)  ||   []   >|                                                        ||
+||  00:00 / 04:57  |<  (>)  ||   []   >|                                        ||
 || [o-------------------------------------------------------------------------] ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
@@ -45,7 +45,7 @@
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-|abbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|acbbbbbbbbbbbbbbcbbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccca|
 |acbdbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|

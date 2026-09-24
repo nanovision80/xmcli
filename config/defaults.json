@@ -27,6 +27,7 @@
       "chars_per_second": 6,
       "pause_ms": 2000
     },
-    "seek_step_seconds": 5
+    "seek_step_seconds": 5,
+    "time_display": "elapsed"
   }
 }

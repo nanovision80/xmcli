@@ -150,6 +150,28 @@ pub struct Ui {
     pub marquee: Marquee,
     /// Quanto cada toque nas setas avança ou recua a música, em segundos (RF-504).
     pub seek_step_seconds: u16,
+    /// O que o display de tempo mostra ao abrir (RF-505).
+    pub time_display: TimeDisplay,
+}
+
+/// O que o display de tempo do transporte mostra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TimeDisplay {
+    /// Quanto já tocou.
+    Elapsed,
+    /// Quanto falta.
+    Remaining,
+}
+
+impl TimeDisplay {
+    /// O outro modo.
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Elapsed => Self::Remaining,
+            Self::Remaining => Self::Elapsed,
+        }
+    }
 }
 
 /// Rolagem do título no cabeçalho (RF-502).

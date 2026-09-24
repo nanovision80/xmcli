@@ -64,6 +64,8 @@ pub enum Action {
     SeekForward,
     /// Recuar a música um passo.
     SeekBackward,
+    /// Alternar o display de tempo entre decorrido e restante (RF-505).
+    ToggleTime,
 }
 
 /// Uma tecla, independente de biblioteca de terminal.

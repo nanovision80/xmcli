@@ -516,7 +516,13 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       motivo da âncora da 3.4. Para isso ele passou a contar só quadros de música, o que
       corrigiu o corte do fim da música depois de um estouro. O mouse (`--mouse`) é a 10.3; os
       números de tempo, a 5.5.*
-- [ ] 5.5 Display de tempo alternável entre decorrido e restante (RF-505)
+- [x] 5.5 Display de tempo alternável entre decorrido e restante (RF-505)
+      — *` 01:23 / 04:57` ou `-03:34 / 04:57` no começo da linha do transporte, alternando
+      com `t`; o modo inicial vem de `ui.time_display` e o escolhido vale para a lista
+      inteira. Segundos truncados dos dois lados, para decorrido e restante somarem a duração
+      mostrada, e largura fixa na faixa — sinal reservado, minutos com os dígitos da
+      duração —, para os botões não pularem. `ui/chrome/time.rs` é a formatação de tempo
+      única do programa: o anúncio da faixa e o fim do render no `main.rs` usam a mesma.*
 - [ ] 5.6 Sliders de volume e de balanço/separação estéreo (RF-506)
 - [ ] 5.7 Barra de status com o equivalente tracker do rodapé do Winamp (RF-507)
 - [ ] 5.8 Teclas vindas de `keymap.json` → ações; overlay de ajuda

@@ -51,6 +51,8 @@ pub fn press(state: Transport, action: Action) -> Step {
         (Action::SeekForward | Action::SeekBackward, Stopped) => Step::Stay,
         (Action::SeekForward, Playing | Paused) => Step::Seek { forward: true },
         (Action::SeekBackward, Playing | Paused) => Step::Seek { forward: false },
+        // Não mexe na reprodução: o laço atende antes de perguntar ao transporte.
+        (Action::ToggleTime, _) => Step::Stay,
     }
 }
 

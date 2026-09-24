@@ -15,7 +15,7 @@ use xmcli::formats::{self, FormatError};
 use xmcli::info::Report;
 use xmcli::io::{self, Input};
 use xmcli::player;
-use xmcli::ui::chrome::marquee;
+use xmcli::ui::chrome::{marquee, time};
 use xmcli::ui::term::color::{self, ColorDepth};
 use xmcli::ui::transport::Transport;
 use xmcli::ui::{self, Exit, Screen, Setup};
@@ -196,7 +196,7 @@ fn play_one(
             "xmcli: {title} [{} {}ch] {}",
             song.dialect.extension(),
             song.channels,
-            format_duration(seconds),
+            time::clock(seconds),
         );
     };
     let ended = Track {
@@ -255,7 +255,7 @@ fn render_to_file(
     eprintln!(
         "xmcli: {} escrito ({} a {} Hz)",
         target.display(),
-        format_duration(rendered.seconds()),
+        time::clock(rendered.seconds()),
         rendered.sample_rate,
     );
     Ok(())
@@ -298,17 +298,6 @@ fn write_line(out: &mut impl Write, text: &str) -> anyhow::Result<bool> {
         Err(error) if error.kind() == ErrorKind::BrokenPipe => Ok(false),
         Err(error) => Err(error.into()),
     }
-}
-
-/// Formata uma duração como `m:ss`.
-fn format_duration(seconds: f64) -> String {
-    const SECONDS_PER_MINUTE: u64 = 60;
-    let total = seconds.max(0.0) as u64;
-    format!(
-        "{}:{:02}",
-        total / SECONDS_PER_MINUTE,
-        total % SECONDS_PER_MINUTE
-    )
 }
 
 /// Liga o log em `stderr`, nunca em `stdout` — a TUI vai morar lá (RF-709).

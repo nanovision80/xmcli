@@ -8,5 +8,6 @@
   "v": "stop",
   "b": "next",
   "right": "seek_forward",
-  "left": "seek_backward"
+  "left": "seek_backward",
+  "t": "toggle_time"
 }

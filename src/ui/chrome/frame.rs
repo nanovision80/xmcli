@@ -5,9 +5,9 @@
 
 use std::time::Duration;
 
-use crate::config::{Marquee, Theme};
+use crate::config::{Marquee, Theme, TimeDisplay};
 use crate::ui::chrome::layout::{Layout, MIN_HEIGHT, MIN_WIDTH, Rect, layout};
-use crate::ui::chrome::{marquee, seek, transport};
+use crate::ui::chrome::{marquee, seek, time, transport};
 use crate::ui::term::buffer::{Buffer, Cell};
 use crate::ui::term::color::Rgb;
 use crate::ui::transport::Transport;
@@ -25,6 +25,8 @@ const HEADER_PREFIX: &str = " xmcli  >> ";
 const HEADER_SUFFIX: &str = " << ";
 /// Espaço entre a moldura e o que as linhas de baixo mostram.
 const MARGIN: u16 = 1;
+/// Espaço entre o tempo e os botões do transporte, como no desenho do RF-500.
+const TIME_GAP: usize = 1;
 // Os dois são ASCII, então cada byte é uma célula.
 const PREFIX_WIDTH: u16 = HEADER_PREFIX.len() as u16;
 const SUFFIX_WIDTH: u16 = HEADER_SUFFIX.len() as u16;
@@ -42,6 +44,7 @@ pub struct View<'a> {
     pub position: f64,
     /// Duração da faixa, em segundos.
     pub duration: f64,
+    pub time: TimeDisplay,
 }
 
 /// Desenha o quadro inteiro do cromo: fundo, moldura, cabeçalho e, se o terminal for pequeno,
@@ -73,7 +76,21 @@ pub fn draw(frame: &mut Buffer, theme: &Theme, view: &View) {
                 fg: Rgb::from(theme.active),
                 ..text
             };
-            buttons(frame, regions.transport, view.transport, text, active);
+            let clock = time::display(view.time, view.position, view.duration);
+            write(
+                frame,
+                regions.transport.x + MARGIN,
+                regions.transport.y,
+                &clock,
+                text,
+            );
+            // Os botões começam depois da maior largura que o tempo pode ter nesta faixa.
+            let after = MARGIN as usize + time::width(view.duration) + TIME_GAP;
+            let buttons_rect = Rect {
+                x: regions.transport.x.saturating_add(after as u16),
+                ..regions.transport
+            };
+            buttons(frame, buttons_rect, view.transport, text, active);
             seek_bar(frame, regions.seek, view, text, active);
             // Uma linha de moldura acima de cada parte, e a última embaixo de tudo.
             let last = frame.height() - 1;

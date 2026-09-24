@@ -154,7 +154,7 @@ impl Pacer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Marquee;
+    use crate::config::{Marquee, TimeDisplay};
 
     /// Um `write` que o buffer do sistema absorveu na hora.
     const FAST: Duration = Duration::from_micros(10);
@@ -175,6 +175,7 @@ mod tests {
                 pause_ms: 0,
             },
             seek_step_seconds: 1,
+            time_display: TimeDisplay::Elapsed,
         }
     }
 
