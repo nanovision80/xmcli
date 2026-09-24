@@ -20,7 +20,7 @@
 ||                                                                              ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
-||                                                                              ||
+|| |<  (>)  ||   []   >|                                                        ||
 ||                                                                              ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
@@ -45,7 +45,7 @@
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|abbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -53,3 +53,4 @@
 a  texto idx(8)  fundo idx(0)
 b  texto idx(2)  fundo idx(0)
 c  texto idx(0)  fundo idx(0)
+d  texto idx(11)  fundo idx(0)

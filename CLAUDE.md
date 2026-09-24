@@ -495,7 +495,15 @@ teste, e o CI está verde** — não quando "funciona na minha máquina".
       apareceria. Velocidade e pausa em `ui.marquee`. O texto é título e nome do arquivo, ou
       só o nome se o módulo não tiver título. O modo do palco, à direita no desenho do RF-500,
       entra com o palco (6.7).*
-- [ ] 5.3 Transporte com estado visual do botão ativo (RF-503)
+- [x] 5.3 Transporte com estado visual do botão ativo (RF-503)
+      — *`|<  >  ||  []  >|`, com o botão do estado atual na cor `active` do tema **e** entre
+      parênteses: sem cor, só a forma diz qual é. Teclas do Winamp — `z x c v b` e `space` —
+      decididas por uma função pura de (estado, ação) em `ui/transport.rs`. Pausar é um
+      comando à linha de áudio: o callback toca silêncio sem consumir o anel nem avançar o
+      relógio, e retomar segue da amostra exata. Parar reabre a faixa com o dispositivo
+      pausado no começo; `play` tocando recomeça. Anterior e próxima andam na lista de
+      entrada, que vira a playlist na 5.9. Para trocar de faixa sem piscar, a tela passou a
+      ficar aberta para a lista inteira, e o que iria para `stderr` espera ela fechar.*
 - [ ] 5.4 Barra de seek ligada ao *fast-forward* silencioso (RF-504, RF-207)
 - [ ] 5.5 Display de tempo alternável entre decorrido e restante (RF-505)
 - [ ] 5.6 Sliders de volume e de balanço/separação estéreo (RF-506)

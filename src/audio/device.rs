@@ -131,6 +131,9 @@ impl Playback {
 
 /// Começa a tocar numa linha de execução própria e volta assim que o som começou.
 ///
+/// Com `paused`, o dispositivo abre tocando silêncio e a música espera um [`Command::Resume`]
+/// no primeiro quadro — é assim que o player fica parado no começo da faixa.
+///
 /// O motor é construído lá dentro, por `load`: ele não é `Send` (ver [`Engine`]), e o fluxo do
 /// dispositivo também não é em todas as plataformas. Falha ao carregar ou ao abrir o
 /// dispositivo volta daqui, antes de haver reprodução.
@@ -139,8 +142,10 @@ pub fn start(
     sample_rate: u32,
     latency_ms: u16,
     wanted: Option<String>,
+    paused: bool,
 ) -> Result<Playback, DeviceError> {
     let clock = Clock::new(sample_rate);
+    clock.set_paused(paused);
     let (commands, pending) = HeapRb::<Command>::new(COMMAND_CAPACITY).split();
     let (ready, started) = mpsc::sync_channel(1);
 

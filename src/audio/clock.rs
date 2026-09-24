@@ -45,8 +45,8 @@ pub struct Clock {
     finished: AtomicBool,
     /// O dispositivo está tocando silêncio no lugar da música.
     ///
-    /// Escrito pela linha alimentadora, que recebe o pedido da interface pela fila de
-    /// comandos; lido pelo callback. Pausado, o callback não consome nem entrega nada, então
+    /// Escrito na partida e depois pela linha alimentadora, que recebe o pedido da interface
+    /// pela fila de comandos; lido pelo callback. Pausado, o callback não consome nem entrega nada, então
     /// a contagem para e o audível fica no que já foi entregue.
     paused: AtomicBool,
 }

@@ -20,7 +20,7 @@
 ||                                                                              ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
-||                                                                              ||
+|| |<  (>)  ||   []   >|                                                        ||
 ||                                                                              ||
 ||                                                                              ||
 |+------------------------------------------------------------------------------+|
@@ -45,7 +45,7 @@
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-|acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
+|abbbbbdddbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca|
 |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -53,3 +53,4 @@
 a  texto rgb(110,125,150)  fundo rgb(10,10,18)
 b  texto rgb(0,224,64)  fundo rgb(10,10,18)
 c  texto rgb(10,10,18)  fundo rgb(10,10,18)
+d  texto rgb(255,210,0)  fundo rgb(10,10,18)

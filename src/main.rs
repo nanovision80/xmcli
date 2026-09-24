@@ -17,6 +17,7 @@ use xmcli::io::{self, Input};
 use xmcli::player;
 use xmcli::ui::chrome::marquee;
 use xmcli::ui::term::color::{self, ColorDepth};
+use xmcli::ui::transport::Transport;
 use xmcli::ui::{self, Exit, Screen, Setup};
 
 use crate::cli::{Args, ExitCode};
@@ -121,19 +122,32 @@ fn play_all(args: &Args, settings: &Settings, colors: ColorDepth) -> anyhow::Res
     let mut worst = ExitCode::Success;
     let mut deferred = Vec::new();
     let mut underrun_frames = 0;
-    for path in inputs {
+    let mut index = 0;
+    let mut state = Transport::Playing;
+    while let Some(path) = inputs.get(index) {
         let ui = screen.as_mut().map(|screen| (screen, &setup));
-        match play_one(&path, args, settings, ui) {
+        let exit = match play_one(path, args, settings, ui, state) {
             Ok(track) => {
                 underrun_frames += track.underrun_frames;
-                // Sair é sair da lista inteira, não pular para a próxima faixa.
-                if track.exit == Exit::Quit {
-                    break;
-                }
+                track.exit
             }
-            Err(error) if screen.is_some() => deferred.push((path, error)),
-            Err(error) => worst = report_failure(&path, &error, worst),
-        }
+            Err(error) => {
+                if screen.is_some() {
+                    deferred.push((path.clone(), error));
+                } else {
+                    worst = report_failure(path, &error, worst);
+                }
+                Exit::Next
+            }
+        };
+        (index, state) = match exit {
+            // Sair é sair da lista inteira, não pular para a próxima faixa.
+            Exit::Quit => break,
+            Exit::Ended | Exit::Next => (index + 1, Transport::Playing),
+            // Na primeira faixa, a anterior é ela mesma.
+            Exit::Previous => (index.saturating_sub(1), Transport::Playing),
+            Exit::Rewind(state) => (index, state),
+        };
     }
     drop(screen);
 
@@ -162,6 +176,7 @@ fn play_one(
     args: &Args,
     settings: &Settings,
     ui: Option<(&mut Screen, &Setup)>,
+    state: Transport,
 ) -> anyhow::Result<Track> {
     let input = load(path, settings)?;
     let song = formats::read(&input.bytes)?;
@@ -208,12 +223,13 @@ fn play_one(
         rate,
         settings.audio.latency_ms,
         args.device.clone(),
+        state != Transport::Playing,
     )?;
     announce(playback.duration_seconds);
     let exit = match ui {
         Some((screen, setup)) => {
             let marquee = marquee::text(&song.title, &file_name(&input.name));
-            ui::run(screen, &mut playback, setup, &marquee)
+            ui::run(screen, &mut playback, setup, &marquee, state)
         }
         None => Ok(Exit::Ended),
     };

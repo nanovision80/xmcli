@@ -48,6 +48,18 @@ const FUNCTION_MAX: u8 = 12;
 pub enum Action {
     /// Sair do programa.
     Quit,
+    /// Tocar; com a música tocando, recomeçar a faixa (RF-503).
+    Play,
+    /// Pausar e retomar; parado, não faz nada.
+    Pause,
+    /// Alternar entre tocar e pausar, de qualquer estado.
+    PlayPause,
+    /// Parar e voltar ao começo da faixa.
+    Stop,
+    /// Faixa anterior da lista.
+    Previous,
+    /// Próxima faixa da lista.
+    Next,
 }
 
 /// Uma tecla, independente de biblioteca de terminal.

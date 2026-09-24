@@ -60,6 +60,8 @@ pub struct Theme {
     pub frame: Color,
     /// Texto corrido do cromo.
     pub text: Color,
+    /// O que mostra o estado atual, como o botão ativo do transporte.
+    pub active: Color,
 }
 
 /// Todos os temas, por nome.

@@ -5,12 +5,13 @@
 
 pub mod chrome;
 pub mod term;
+pub mod transport;
 
 use std::io;
 use std::time::Instant;
 
-use crate::audio::device::Playback;
-use crate::config::{Action, Keymap, Settings, Theme};
+use crate::audio::device::{Command, Playback};
+use crate::config::{Keymap, Settings, Theme};
 use crate::ui::chrome::frame::View;
 use crate::ui::term::Session;
 use crate::ui::term::buffer::Buffer;
@@ -18,6 +19,7 @@ use crate::ui::term::color::ColorDepth;
 use crate::ui::term::input::{self, Input};
 use crate::ui::term::pace::Pacer;
 use crate::ui::term::paint::Painter;
+use crate::ui::transport::{Step, Transport};
 
 /// Por que a interface terminou.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +28,12 @@ pub enum Exit {
     Ended,
     /// O usuário pediu para sair.
     Quit,
+    /// Faixa anterior da lista.
+    Previous,
+    /// Próxima faixa da lista.
+    Next,
+    /// A mesma faixa, do começo, no estado dado: parada ou tocando.
+    Rewind(Transport),
 }
 
 /// O que a interface precisa saber, resolvido uma vez antes do laço.
@@ -62,7 +70,8 @@ impl Screen {
     }
 }
 
-/// Mostra o player até a música acabar ou o usuário sair; `title` é o que o marquee rola.
+/// Mostra o player até a música acabar ou o usuário deixar a faixa; `title` é o que o marquee
+/// rola, e `state` é como a reprodução começou: tocando, ou parada no começo.
 ///
 /// Quadro a quadro: desenha, escreve de uma vez, e espera o intervalo que o [`Pacer`] manda
 /// atendendo as teclas. A interface perde quadros, o áudio nunca (CLAUDE.md §2, invariante 2):
@@ -72,6 +81,7 @@ pub fn run(
     playback: &mut Playback,
     setup: &Setup,
     title: &str,
+    mut state: Transport,
 ) -> io::Result<Exit> {
     let opened = Instant::now();
 
@@ -83,6 +93,7 @@ pub fn run(
             title,
             marquee: &setup.settings.ui.marquee,
             elapsed: opened.elapsed(),
+            transport: state,
         };
         chrome::frame::draw(&mut screen.frame, setup.theme, &view);
 
@@ -98,10 +109,17 @@ pub fn run(
         while let Some(input) = input::next(started + pace.interval, setup.keymap)? {
             match input {
                 Input::Resized => resized = true,
-                Input::Action(Action::Quit) => {
-                    playback.stop();
-                    return Ok(Exit::Quit);
-                }
+                Input::Action(action) => match transport::press(state, action) {
+                    Step::Stay => {}
+                    // Fila cheia: o pedido não entrou, e o botão não pode mentir.
+                    Step::Pause if playback.send(Command::Pause) => state = Transport::Paused,
+                    Step::Resume if playback.send(Command::Resume) => state = Transport::Playing,
+                    Step::Pause | Step::Resume => {}
+                    Step::Leave(exit) => {
+                        playback.stop();
+                        return Ok(exit);
+                    }
+                },
             }
         }
         if resized {

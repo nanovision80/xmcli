@@ -7,9 +7,10 @@ use std::time::Duration;
 
 use crate::config::{Marquee, Theme};
 use crate::ui::chrome::layout::{Layout, MIN_HEIGHT, MIN_WIDTH, Rect, layout};
-use crate::ui::chrome::marquee;
+use crate::ui::chrome::{marquee, transport};
 use crate::ui::term::buffer::{Buffer, Cell};
 use crate::ui::term::color::Rgb;
+use crate::ui::transport::Transport;
 
 /// Canto e cruzamento de linhas da moldura.
 const CORNER: char = '+';
@@ -33,6 +34,7 @@ pub struct View<'a> {
     pub marquee: &'a Marquee,
     /// Tempo desde que a faixa apareceu na tela; é o que move o marquee.
     pub elapsed: Duration,
+    pub transport: Transport,
 }
 
 /// Desenha o quadro inteiro do cromo: fundo, moldura, cabeçalho e, se o terminal for pequeno,
@@ -60,6 +62,11 @@ pub fn draw(frame: &mut Buffer, theme: &Theme, view: &View) {
     match layout(frame.width(), frame.height()) {
         Layout::Full(regions) => {
             header(frame, regions.header, view, text);
+            let active = Cell {
+                fg: Rgb::from(theme.active),
+                ..text
+            };
+            buttons(frame, regions.transport, view.transport, text, active);
             // Uma linha de moldura acima de cada parte, e a última embaixo de tudo.
             let last = frame.height() - 1;
             for y in [
@@ -102,6 +109,17 @@ fn header(frame: &mut Buffer, rect: Rect, view: &View, style: Cell) {
     // `window` saiu de `rect.width`, que é u16.
     let close = rect.x + PREFIX_WIDTH + window as u16;
     write(frame, close, rect.y, HEADER_SUFFIX, style);
+}
+
+/// Os botões do transporte, com o do estado atual na cor de destaque.
+fn buttons(frame: &mut Buffer, rect: Rect, state: Transport, idle: Cell, active: Cell) {
+    let mut x = rect.x;
+    for piece in transport::buttons(state) {
+        let style = if piece.active { active } else { idle };
+        write(frame, x, rect.y, &piece.text, style);
+        // Os botões são ASCII: cada byte é uma célula.
+        x = x.saturating_add(piece.text.len() as u16);
+    }
 }
 
 fn fill(frame: &mut Buffer, cell: Cell) {

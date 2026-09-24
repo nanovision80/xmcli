@@ -47,6 +47,12 @@ com o erro de sincronismo medido antes de existir a primeira tela.
 - Marquee no cabeçalho: título do módulo e nome do arquivo rolando no ritmo clássico —
   parado no começo, corre até o fim, parado no fim, volta —, pelo relógio de parede, não
   pelo da música. Velocidade e pausa em `ui.marquee` (RF-502).
+- Transporte: tocar, pausar, parar, faixa anterior e próxima, nas teclas do Winamp (`z`, `x`,
+  `c`, `v`, `b`) e em `space`, com o botão do estado atual destacado por cor e por parênteses,
+  que valem também sem cor (RF-503). A pausa retoma da amostra exata em que parou; parar
+  volta ao começo da faixa.
+- A tela fica aberta de uma faixa para a outra; erros de arquivo e o aviso de estouro do
+  dispositivo aparecem quando ela fecha, com o estouro somado na lista inteira.
 - `config/keymap.json` (teclas → ações) e `config/palettes.json` (temas de cor), validados
   na compilação como o `defaults.json`; o tema vem de `ui.theme`.
 - Oito módulos de amostra de licença pública nos quatro formatos, em `samples/`.
