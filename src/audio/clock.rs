@@ -43,6 +43,12 @@ pub struct Clock {
     anchor_nanos: AtomicU64,
     underruns: AtomicU64,
     finished: AtomicBool,
+    /// O dispositivo está tocando silêncio no lugar da música.
+    ///
+    /// Escrito pela linha alimentadora, que recebe o pedido da interface pela fila de
+    /// comandos; lido pelo callback. Pausado, o callback não consome nem entrega nada, então
+    /// a contagem para e o audível fica no que já foi entregue.
+    paused: AtomicBool,
 }
 
 impl Clock {
@@ -54,6 +60,7 @@ impl Clock {
             anchor_nanos: AtomicU64::new(0),
             underruns: AtomicU64::new(0),
             finished: AtomicBool::new(false),
+            paused: AtomicBool::new(false),
         })
     }
 
@@ -121,6 +128,14 @@ impl Clock {
 
     pub fn is_finished(&self) -> bool {
         self.finished.load(Ordering::Acquire)
+    }
+
+    pub fn set_paused(&self, paused: bool) {
+        self.paused.store(paused, Ordering::Release);
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Acquire)
     }
 }
 

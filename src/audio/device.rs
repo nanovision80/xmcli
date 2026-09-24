@@ -69,12 +69,16 @@ pub struct Played {
 
 /// Pedido da interface à linha de áudio (etapa 2.6).
 ///
-/// Os comandos entram com quem os envia: parar agora; pausa, seek e volume com o transporte,
+/// Os comandos entram com quem os envia: parar e pausar com o transporte; seek e volume com
 /// a barra de seek e os sliders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     /// Parar agora, sem esperar o anel esvaziar.
     Stop,
+    /// Tocar silêncio no lugar da música, sem perder o que está no anel.
+    Pause,
+    /// Voltar a tocar do ponto exato em que pausou.
+    Resume,
 }
 
 /// Comandos que cabem na fila antes de o remetente desistir de enfileirar.
@@ -104,6 +108,14 @@ impl Playback {
     pub fn stop(&mut self) {
         // Fila cheia é fila com pedidos por atender; um Stop a mais não mudaria nada.
         let _ = self.commands.try_push(Command::Stop);
+    }
+
+    /// Envia um pedido à linha de áudio; `false` se a fila estava cheia e ele não entrou.
+    ///
+    /// Quem envia pausa ou retomada precisa saber: o estado que ele mostra só muda se o
+    /// pedido entrou.
+    pub fn send(&mut self, command: Command) -> bool {
+        self.commands.try_push(command).is_ok()
     }
 
     /// Se a reprodução já acabou — a música chegou ao fim ou alguém a parou.
@@ -234,27 +246,7 @@ impl Feeder {
         let stream = device
             .build_output_stream(
                 config,
-                move |out: &mut [f32], _| {
-                    // Único trabalho do callback: copiar. Sem alocação, sem lock, sem I/O.
-                    let taken = consumer.pop_slice(out);
-                    if taken < out.len() {
-                        // Silêncio em vez de lixo: um estouro deve soar como um buraco, não
-                        // como um estalo. A contagem sobe para o programa poder relatar
-                        // (RF-402).
-                        out[taken..].fill(0.0);
-
-                        // Depois do fim da música o anel esvazia por definição, e o último
-                        // bloco é parcial porque o total renderizado não é múltiplo do buffer
-                        // do dispositivo. Contar isso como estouro faria o programa pedir mais
-                        // latência para um problema que não existe. Ler o sinalizador aqui é
-                        // barato e não fere o invariante 1: é um átomo, sem lock e sem
-                        // alocação.
-                        if !callback_clock.is_finished() {
-                            callback_clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
-                        }
-                    }
-                    callback_clock.deliver((out.len() / CHANNELS) as u64);
-                },
+                move |out: &mut [f32], _| feed_device(out, &mut consumer, &callback_clock),
                 |error| tracing::warn!(%error, "erro no fluxo de áudio"),
                 None,
             )
@@ -281,16 +273,45 @@ impl Feeder {
         true
     }
 
-    /// Esvazia a fila de comandos e diz se algum deles pediu para parar.
+    /// Atende a fila de comandos e diz se algum deles pediu para parar.
     fn stop_requested(&mut self) -> bool {
         let mut stop = false;
         while let Some(command) = self.commands.try_pop() {
             match command {
                 Command::Stop => stop = true,
+                Command::Pause => self.clock.set_paused(true),
+                Command::Resume => self.clock.set_paused(false),
             }
         }
         stop
     }
+}
+
+/// O callback do dispositivo.
+///
+/// Único trabalho dele: copiar do anel para a saída. Sem alocação, sem lock, sem I/O
+/// (CLAUDE.md §2, invariante 1); os sinalizadores do relógio que ele lê são átomos.
+fn feed_device(out: &mut [f32], ring: &mut impl Consumer<Item = f32>, clock: &Clock) {
+    if clock.is_paused() {
+        // O anel fica como está e nada é entregue: retomar continua da amostra seguinte, e o
+        // relógio não anda enquanto nada soa. Este silêncio foi pedido; não é estouro.
+        out.fill(0.0);
+        return;
+    }
+    let taken = ring.pop_slice(out);
+    if taken < out.len() {
+        // Silêncio em vez de lixo: um estouro deve soar como um buraco, não como um estalo. A
+        // contagem sobe para o programa poder relatar (RF-402).
+        out[taken..].fill(0.0);
+
+        // Depois do fim da música o anel esvazia por definição, e o último bloco é parcial
+        // porque o total renderizado não é múltiplo do buffer do dispositivo. Contar isso como
+        // estouro faria o programa pedir mais latência para um problema que não existe.
+        if !clock.is_finished() {
+            clock.record_underrun(((out.len() - taken) / CHANNELS) as u64);
+        }
+    }
+    clock.deliver((out.len() / CHANNELS) as u64);
 }
 
 /// Escolhe o dispositivo pedido, ou o padrão do sistema (RF-401).
@@ -308,4 +329,70 @@ fn pick(wanted: Option<&str>) -> Result<cpal::Device, DeviceError> {
                 .is_ok_and(|description| description.name().contains(wanted))
         })
         .ok_or_else(|| DeviceError::NotFound(wanted.to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ringbuf::traits::Observer;
+
+    const RATE: u32 = 44_100;
+
+    /// Quadros por chamada do callback simulado.
+    const CALLBACK_FRAMES: usize = 4;
+
+    /// Um anel com `frames` quadros de amostras não nulas, que dá para distinguir de silêncio.
+    fn ring(frames: usize) -> HeapCons<f32> {
+        let (mut producer, consumer) = HeapRb::<f32>::new((frames * CHANNELS).max(1)).split();
+        producer.push_iter((1..=frames * CHANNELS).map(|sample| sample as f32));
+        consumer
+    }
+
+    #[test]
+    fn tocando_copia_do_anel_e_entrega() {
+        let clock = Clock::new(RATE);
+        let mut consumer = ring(CALLBACK_FRAMES);
+        let mut out = [0.0; CALLBACK_FRAMES * CHANNELS];
+
+        feed_device(&mut out, &mut consumer, &clock);
+        assert_eq!(out[0], 1.0);
+        assert_eq!(clock.frames_played(), CALLBACK_FRAMES as u64);
+        assert_eq!(clock.underruns(), 0);
+    }
+
+    #[test]
+    fn pausado_toca_silencio_sem_consumir_nem_entregar() {
+        let clock = Clock::new(RATE);
+        let mut consumer = ring(CALLBACK_FRAMES);
+        let mut out = [1.0; CALLBACK_FRAMES * CHANNELS];
+
+        clock.set_paused(true);
+        feed_device(&mut out, &mut consumer, &clock);
+        assert!(out.iter().all(|&sample| sample == 0.0));
+        assert_eq!(consumer.occupied_len(), CALLBACK_FRAMES * CHANNELS);
+        assert_eq!(clock.frames_played(), 0);
+        // Pausa não é o dispositivo ficando sem dados.
+        assert_eq!(clock.underruns(), 0);
+
+        // Retomado, continua da primeira amostra que estava esperando.
+        clock.set_paused(false);
+        feed_device(&mut out, &mut consumer, &clock);
+        assert_eq!(out[0], 1.0);
+        assert_eq!(clock.frames_played(), CALLBACK_FRAMES as u64);
+    }
+
+    #[test]
+    fn anel_vazio_e_estouro_so_antes_do_fim() {
+        let clock = Clock::new(RATE);
+        let mut consumer = ring(0);
+        let mut out = [1.0; CALLBACK_FRAMES * CHANNELS];
+
+        feed_device(&mut out, &mut consumer, &clock);
+        assert!(out.iter().all(|&sample| sample == 0.0));
+        assert_eq!(clock.underruns(), CALLBACK_FRAMES as u64);
+
+        clock.mark_finished();
+        feed_device(&mut out, &mut consumer, &clock);
+        assert_eq!(clock.underruns(), CALLBACK_FRAMES as u64);
+    }
 }
