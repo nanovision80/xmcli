@@ -37,17 +37,42 @@ pub struct Setup<'a> {
     pub colors: ColorDepth,
 }
 
+/// O terminal nas mãos do player, aberto uma vez para a lista inteira.
+///
+/// Entrar e sair da tela alternativa a cada faixa mostraria o shell por um instante em cada
+/// troca. O que se aprende sobre o terminal — o throughput do `Pacer`, o que já está na tela —
+/// também vale de uma faixa para a outra.
+pub struct Screen {
+    session: Session,
+    painter: Painter,
+    pacer: Pacer,
+    frame: Buffer,
+}
+
+impl Screen {
+    pub fn open(setup: &Setup) -> io::Result<Self> {
+        let session = Session::enter()?;
+        let (width, height) = session.size()?;
+        Ok(Self {
+            session,
+            painter: Painter::new(setup.colors),
+            pacer: Pacer::new(&setup.settings.ui, setup.colors),
+            frame: Buffer::new(width, height),
+        })
+    }
+}
+
 /// Mostra o player até a música acabar ou o usuário sair; `title` é o que o marquee rola.
 ///
 /// Quadro a quadro: desenha, escreve de uma vez, e espera o intervalo que o [`Pacer`] manda
 /// atendendo as teclas. A interface perde quadros, o áudio nunca (CLAUDE.md §2, invariante 2):
 /// nada aqui espera pela linha de áudio nem a faz esperar.
-pub fn run(playback: &mut Playback, setup: &Setup, title: &str) -> io::Result<Exit> {
-    let mut session = Session::enter()?;
-    let mut painter = Painter::new(setup.colors);
-    let mut pacer = Pacer::new(&setup.settings.ui, setup.colors);
-    let (width, height) = session.size()?;
-    let mut frame = Buffer::new(width, height);
+pub fn run(
+    screen: &mut Screen,
+    playback: &mut Playback,
+    setup: &Setup,
+    title: &str,
+) -> io::Result<Exit> {
     let opened = Instant::now();
 
     loop {
@@ -59,12 +84,14 @@ pub fn run(playback: &mut Playback, setup: &Setup, title: &str) -> io::Result<Ex
             marquee: &setup.settings.ui.marquee,
             elapsed: opened.elapsed(),
         };
-        chrome::frame::draw(&mut frame, setup.theme, &view);
+        chrome::frame::draw(&mut screen.frame, setup.theme, &view);
 
         let started = Instant::now();
-        let bytes = painter.present(&frame, session.out())?;
-        let pace = pacer.record(bytes, started.elapsed());
-        painter.set_depth(pace.depth);
+        let bytes = screen
+            .painter
+            .present(&screen.frame, screen.session.out())?;
+        let pace = screen.pacer.record(bytes, started.elapsed());
+        screen.painter.set_depth(pace.depth);
 
         // Uma rajada de avisos de tamanho vira uma pergunta só ao terminal, no quadro seguinte.
         let mut resized = false;
@@ -78,9 +105,9 @@ pub fn run(playback: &mut Playback, setup: &Setup, title: &str) -> io::Result<Ex
             }
         }
         if resized {
-            let (width, height) = session.size()?;
-            frame = Buffer::new(width, height);
-            painter.invalidate();
+            let (width, height) = screen.session.size()?;
+            screen.frame = Buffer::new(width, height);
+            screen.painter.invalidate();
         }
     }
 }

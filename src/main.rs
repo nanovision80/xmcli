@@ -17,7 +17,7 @@ use xmcli::io::{self, Input};
 use xmcli::player;
 use xmcli::ui::chrome::marquee;
 use xmcli::ui::term::color::{self, ColorDepth};
-use xmcli::ui::{self, Exit, Setup};
+use xmcli::ui::{self, Exit, Screen, Setup};
 
 use crate::cli::{Args, ExitCode};
 
@@ -103,36 +103,66 @@ fn play_all(args: &Args, settings: &Settings, colors: ColorDepth) -> anyhow::Res
         );
     }
 
-    // A interface só sobe num terminal: com a saída num arquivo ou num cano, o player toca
-    // sem ela, como antes.
     let theme = config::theme(settings);
     let keymap = config::keymap();
-    let interactive = args.render.is_none() && !args.raw_stdout && std::io::stdout().is_terminal();
-    let setup = interactive.then_some(Setup {
+    let setup = Setup {
         settings,
         theme: &theme,
         keymap: &keymap,
         colors,
-    });
+    };
+    // A interface só sobe num terminal: com a saída num arquivo ou num cano, o player toca
+    // sem ela, como antes.
+    let interactive = args.render.is_none() && !args.raw_stdout && std::io::stdout().is_terminal();
+    let mut screen = interactive.then(|| Screen::open(&setup)).transpose()?;
 
+    // Com a tela aberta, texto em `stderr` cairia no meio do quadro e sumiria no seguinte: o
+    // que há para dizer espera a tela fechar.
     let mut worst = ExitCode::Success;
+    let mut deferred = Vec::new();
+    let mut underrun_frames = 0;
     for path in inputs {
-        match play_one(&path, args, settings, setup.as_ref()) {
-            // Sair é sair da lista inteira, não pular para a próxima faixa.
-            Ok(Exit::Quit) => break,
-            Ok(Exit::Ended) => {}
+        let ui = screen.as_mut().map(|screen| (screen, &setup));
+        match play_one(&path, args, settings, ui) {
+            Ok(track) => {
+                underrun_frames += track.underrun_frames;
+                // Sair é sair da lista inteira, não pular para a próxima faixa.
+                if track.exit == Exit::Quit {
+                    break;
+                }
+            }
+            Err(error) if screen.is_some() => deferred.push((path, error)),
             Err(error) => worst = report_failure(&path, &error, worst),
         }
     }
+    drop(screen);
+
+    for (path, error) in &deferred {
+        worst = report_failure(path, error, worst);
+    }
+    if underrun_frames > 0 {
+        // Estouro é sintoma, não detalhe: o usuário precisa saber para elevar a latência.
+        tracing::warn!(
+            frames = underrun_frames,
+            "o dispositivo ficou sem dados; eleve audio.latency_ms"
+        );
+    }
     Ok(worst)
+}
+
+/// Como terminou uma faixa.
+struct Track {
+    exit: Exit,
+    /// Quadros em que o dispositivo ficou sem dados (RF-402).
+    underrun_frames: u64,
 }
 
 fn play_one(
     path: &Path,
     args: &Args,
     settings: &Settings,
-    setup: Option<&Setup>,
-) -> anyhow::Result<Exit> {
+    ui: Option<(&mut Screen, &Setup)>,
+) -> anyhow::Result<Track> {
     let input = load(path, settings)?;
     let song = formats::read(&input.bytes)?;
     let rate = settings.audio.sample_rate;
@@ -141,7 +171,12 @@ fn play_one(
     } else {
         song.title.clone()
     };
+    // Com a interface aberta quem mostra a faixa é o marquee, e a linha iria para o meio dela.
+    let quiet = ui.is_some();
     let announce = |seconds: f64| {
+        if quiet {
+            return;
+        }
         eprintln!(
             "xmcli: {title} [{} {}ch] {}",
             song.dialect.extension(),
@@ -149,17 +184,21 @@ fn play_one(
             format_duration(seconds),
         );
     };
+    let ended = Track {
+        exit: Exit::Ended,
+        underrun_frames: 0,
+    };
 
     if args.render.is_some() || args.raw_stdout {
         let mut engine = player::load(&input.bytes, rate)?;
         announce(engine.duration_seconds());
         if let Some(target) = &args.render {
             render_to_file(engine.as_mut(), rate, target)?;
-            return Ok(Exit::Ended);
+            return Ok(ended);
         }
         let mut out = std::io::stdout().lock();
         offline::render_raw(engine.as_mut(), rate, &mut out)?;
-        return Ok(Exit::Ended);
+        return Ok(ended);
     }
 
     // O motor nasce na linha de áudio, que é quem o usa: ele não atravessa linhas (Engine).
@@ -171,12 +210,11 @@ fn play_one(
         args.device.clone(),
     )?;
     announce(playback.duration_seconds);
-    let exit = match setup {
-        Some(setup) => ui::run(
-            &mut playback,
-            setup,
-            &marquee::text(&song.title, &file_name(&input.name)),
-        ),
+    let exit = match ui {
+        Some((screen, setup)) => {
+            let marquee = marquee::text(&song.title, &file_name(&input.name));
+            ui::run(screen, &mut playback, setup, &marquee)
+        }
         None => Ok(Exit::Ended),
     };
     if exit.is_err() {
@@ -185,14 +223,10 @@ fn play_one(
         playback.stop();
     }
     let played = playback.wait()?;
-    if played.underrun_frames > 0 {
-        // Estouro é sintoma, não detalhe: o usuário precisa saber para elevar a latência.
-        tracing::warn!(
-            frames = played.underrun_frames,
-            "o dispositivo ficou sem dados; eleve audio.latency_ms"
-        );
-    }
-    Ok(exit?)
+    Ok(Track {
+        exit: exit?,
+        underrun_frames: played.underrun_frames,
+    })
 }
 
 fn render_to_file(
