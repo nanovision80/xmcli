@@ -95,7 +95,7 @@ fn error_ms(reported: u64, truth: f64) -> f64 {
 
 /// Dispositivo simulado: entrega um buffer por período, no horário.
 struct Device {
-    thread: JoinHandle<()>,
+    thread: JoinHandle<Lateness>,
     /// Início da corrida, medido dentro da linha do dispositivo.
     ///
     /// A régua verdadeira nasce na primeira entrega, e não na chamada a `spawn`: o atraso da
@@ -124,6 +124,7 @@ fn spawn_device(
     let thread = std::thread::spawn(move || {
         let start = Instant::now();
         started.send(start).expect("o teste espera pelo início");
+        let mut lateness = Lateness::default();
 
         for delivery in 0..DELIVERIES {
             render(delivery * BUFFER_FRAMES);
@@ -140,15 +141,96 @@ fn spawn_device(
             clock.deliver(BUFFER_FRAMES);
             let late = Instant::now().duration_since(due);
             device_late.store(late.as_nanos() as u64, Ordering::Release);
+            lateness.record(late);
         }
 
         running.store(false, Ordering::Release);
+        lateness
     });
 
     Device {
         thread,
         start: start.recv().expect("a linha do dispositivo começou"),
         late_nanos,
+    }
+}
+
+/// Quanto o dispositivo simulado se atrasou ao longo da corrida.
+///
+/// É o que diz, quando sobra pouca leitura válida, se foi o dispositivo que perdeu o
+/// processador — e com que frequência e por quanto tempo.
+#[derive(Debug, Default)]
+struct Lateness {
+    /// Entregas que saíram além de [`TOLERANCE`].
+    late: u32,
+    worst: Duration,
+}
+
+impl Lateness {
+    fn record(&mut self, late: Duration) {
+        if late > TOLERANCE {
+            self.late += 1;
+        }
+        self.worst = self.worst.max(late);
+    }
+}
+
+impl std::fmt::Display for Lateness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} de {DELIVERIES} entregas atrasadas, a pior em {:.2} ms",
+            self.late,
+            self.worst.as_secs_f64() * 1_000.0
+        )
+    }
+}
+
+/// Por que uma leitura não conta — um motivo para cada filtro de [`read`].
+enum Rejection {
+    /// A entrega mais recente saiu atrasada e deslocou a âncora.
+    LateDelivery,
+    /// A própria leitura demorou mais que a tolerância.
+    SlowRead,
+    /// Uma entrega aconteceu no meio da leitura.
+    DeliveryDuringRead,
+    /// A entrega que o horário pedia ainda não aconteceu.
+    PendingDelivery,
+}
+
+/// Contagem das leituras recusadas, por motivo.
+///
+/// "A máquina não sustentou a medição" sozinho não diz o que investigar. A contagem diz qual
+/// linha de execução perdeu o processador: o dispositivo (entrega atrasada ou pendente) ou o
+/// medidor (leitura lenta).
+#[derive(Debug, Default)]
+struct Rejections {
+    late_delivery: u32,
+    slow_read: u32,
+    delivery_during_read: u32,
+    pending_delivery: u32,
+}
+
+impl Rejections {
+    fn count(&mut self, rejection: Rejection) {
+        let counter = match rejection {
+            Rejection::LateDelivery => &mut self.late_delivery,
+            Rejection::SlowRead => &mut self.slow_read,
+            Rejection::DeliveryDuringRead => &mut self.delivery_during_read,
+            Rejection::PendingDelivery => &mut self.pending_delivery,
+        };
+        *counter += 1;
+    }
+}
+
+impl std::fmt::Display for Rejections {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "recusadas: {} por entrega atrasada, {} por leitura lenta, {} por entrega durante a \
+             leitura, {} por entrega pendente",
+            self.late_delivery, self.slow_read, self.delivery_during_read, self.pending_delivery
+        )
     }
 }
 
@@ -159,7 +241,7 @@ struct Reading {
     truth: f64,
 }
 
-/// Lê a posição e a verdade do instante, ou devolve `None` se a leitura não for confiável.
+/// Lê a posição e a verdade do instante, ou diz por que a leitura não é confiável.
 ///
 /// Confiável é: a leitura coube na tolerância, e a última entrega do dispositivo simulado saiu
 /// no horário. O segundo filtro não esconde defeito do modelo — cada entrega recorrige a
@@ -176,10 +258,10 @@ struct Reading {
 /// O atraso é conferido antes e depois das leituras, e precisa ser o mesmo: um valor diferente
 /// significa que uma entrega aconteceu no meio, e que a âncora usada pode não ser a que o
 /// atraso descreve.
-fn read(clock: &Clock, device: &Device) -> Option<Reading> {
+fn read(clock: &Clock, device: &Device) -> Result<Reading, Rejection> {
     let late = device.late_nanos.load(Ordering::Acquire);
     if late > TOLERANCE.as_nanos() as u64 {
-        return None;
+        return Err(Rejection::LateDelivery);
     }
 
     let before = Instant::now();
@@ -188,18 +270,21 @@ fn read(clock: &Clock, device: &Device) -> Option<Reading> {
     let after = Instant::now();
 
     let window = after.duration_since(before);
-    if window > TOLERANCE || device.late_nanos.load(Ordering::Acquire) != late {
-        return None;
+    if window > TOLERANCE {
+        return Err(Rejection::SlowRead);
+    }
+    if device.late_nanos.load(Ordering::Acquire) != late {
+        return Err(Rejection::DeliveryDuringRead);
     }
 
     // O ponto médio da janela é o instante a que as duas leituras se referem.
     let elapsed = before.duration_since(device.start) + window / 2;
     let due = elapsed.as_secs_f64() / buffer_period().as_secs_f64();
     if played < (due as u64 + 1) * BUFFER_FRAMES {
-        return None;
+        return Err(Rejection::PendingDelivery);
     }
 
-    Some(Reading {
+    Ok(Reading {
         audible,
         played,
         truth: frames_in(elapsed),
@@ -222,6 +307,7 @@ fn a_compensacao_de_latencia_cabe_no_orcamento_de_um_quadro() {
     // O lado da interface: pergunta a posição como faria a cada quadro, só que mais vezes.
     let mut worst_compensated = 0.0_f64;
     let mut worst_naive = 0.0_f64;
+    let mut rejections = Rejections::default();
     let mut valid = 0_u32;
     let mut total = 0_u32;
     let mut next = device.start;
@@ -230,15 +316,19 @@ fn a_compensacao_de_latencia_cabe_no_orcamento_de_um_quadro() {
         next += SAMPLE_PERIOD;
         total += 1;
 
-        let Some(reading) = read(&clock, &device) else {
-            continue;
+        let reading = match read(&clock, &device) {
+            Ok(reading) => reading,
+            Err(rejection) => {
+                rejections.count(rejection);
+                continue;
+            }
         };
         worst_compensated = worst_compensated.max(error_ms(reading.audible, reading.truth));
         worst_naive = worst_naive.max(error_ms(reading.played, reading.truth));
         valid += 1;
     }
 
-    device
+    let lateness = device
         .thread
         .join()
         .expect("a linha do dispositivo não entra em pânico");
@@ -247,12 +337,13 @@ fn a_compensacao_de_latencia_cabe_no_orcamento_de_um_quadro() {
     // perto de falhar em uma máquina mais lenta.
     println!(
         "{valid} de {total} amostras válidas; erro máximo {worst_compensated:.2} ms com \
-         compensação, {worst_naive:.2} ms sem"
+         compensação, {worst_naive:.2} ms sem\n{rejections}\n{lateness}"
     );
 
     assert!(
         f64::from(valid) >= f64::from(total) * MIN_VALID,
-        "só {valid} de {total} leituras foram confiáveis: a máquina não sustentou a medição"
+        "só {valid} de {total} leituras foram confiáveis: a máquina não sustentou a medição \
+         ({rejections}; {lateness})"
     );
     assert!(
         worst_compensated < BUDGET_MS,
@@ -393,6 +484,7 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
     };
     let mut worst_shown = 0.0_f64;
     let mut worst_newest = 0.0_f64;
+    let mut rejections = Rejections::default();
     let mut valid = 0_u32;
     let mut total = 0_u32;
     let mut next = device.start;
@@ -401,8 +493,12 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
         next += SAMPLE_PERIOD;
         total += 1;
 
-        let Some(reading) = read(&clock, &device) else {
-            continue;
+        let reading = match read(&clock, &device) {
+            Ok(reading) => reading,
+            Err(rejection) => {
+                rejections.count(rejection);
+                continue;
+            }
         };
         let Some(shown) = viewer.frame_at(reading.audible) else {
             continue;
@@ -416,7 +512,7 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
         valid += 1;
     }
 
-    device
+    let lateness = device
         .thread
         .join()
         .expect("a linha do dispositivo não entra em pânico");
@@ -426,7 +522,7 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
 
     println!(
         "{valid} de {total} amostras válidas sob carga; erro máximo {worst_shown:.2} ms no tempo \
-         audível, {worst_newest:.2} ms seguindo o bloco mais novo"
+         audível, {worst_newest:.2} ms seguindo o bloco mais novo\n{rejections}\n{lateness}"
     );
 
     // A perda vem primeiro porque ela invalida o resto: sem o bloco que contém o quadro
@@ -440,7 +536,8 @@ fn o_barramento_master_segue_o_tempo_audivel_sob_carga() {
     );
     assert!(
         f64::from(valid) >= f64::from(total) * MIN_VALID,
-        "só {valid} de {total} leituras foram confiáveis: a máquina não sustentou a medição"
+        "só {valid} de {total} leituras foram confiáveis: a máquina não sustentou a medição \
+         ({rejections}; {lateness})"
     );
     assert!(
         worst_shown < BUDGET_MS,
